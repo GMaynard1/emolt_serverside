@@ -1,5 +1,7 @@
 # plumber.R
+require(jsonlite)
 require(plumber)
+require(reticulate)
 require(RMySQL)
 require(wkb)
 
@@ -36,6 +38,24 @@ function(vessel="ALL"){
   }
 }
 
+#* Create and export control file during vessel setup
+#* @param vessel The vessel you'd like to create a control file for
+#* @serializer unboxedJSON
+#* @get /getControl_File
+function(vessel){
+  py_run_string("import json")
+  py_run_string("metadata = {'time_range': 1,
+            'Fathom': .1,
+            'transmitter': 'yes',
+            'mac_addr': ['CF:D4:F1:9D:8D:A8','ED:E8:8C:F6:86:C6','C1:07:7B:6E:C6:16'],
+            'moana_SN': '0113',
+            'gear_type': 'mobile',
+            'vessel_num': 99,
+            'vessel_name': 'Default_setup',
+            'tilt': 'no'}")
+  py_run_string("with open('dict.json','w') as fp: json.dump(metadata,fp)")
+  read_json("dict.json",simplifyVector = TRUE)
+}
 #* Record status updates and haul average data transmissions via satellite
 #* @param datastring The payload from a Rockblock
 #* @post /getRock_API
