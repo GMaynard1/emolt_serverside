@@ -43,18 +43,103 @@ function(vessel="ALL"){
 #* @serializer unboxedJSON
 #* @get /getControl_File
 function(vessel){
-  py_run_string("import json")
-  py_run_string("metadata = {'time_range': 1,
-            'Fathom': .1,
-            'transmitter': 'yes',
-            'mac_addr': ['CF:D4:F1:9D:8D:A8','ED:E8:8C:F6:86:C6','C1:07:7B:6E:C6:16'],
-            'moana_SN': '0113',
-            'gear_type': 'mobile',
-            'vessel_num': 99,
-            'vessel_name': 'Default_setup',
-            'tilt': 'no'}")
-  py_run_string("with open('dict.json','w') as fp: json.dump(metadata,fp)")
-  read_json("dict.json",simplifyVector = TRUE)
+  ## Connect to database
+  mydb=dbConnect(
+    MySQL(), 
+    user=db_config$username, 
+    password=db_config$password, 
+    dbname=db_config$db, 
+    host=db_config$host,
+    port=db_config$port
+  )
+  
+  ## Standardize the vessel name to all uppercase, no underscore, remove the 
+  ## leading characters F/V if they exist
+  vessel=gsub(
+      pattern="F/V",
+      replacement="",
+      x=gsub(
+        pattern="_",
+        replacement=" ",
+        x=toupper(vessel)
+      )
+    )
+  ## Query the logger metadata out of the database
+  loggerdat=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM vessel_mac WHERE VESSEL_NAME = '",
+      vessel,
+      "' AND EQUIPMENT_TYPE = 'LOGGER'"
+    )
+  )
+  ## Query the gear type out of the database
+  gear=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT FMCODE FROM VESSELS INNER JOIN GEAR_CODES ON VESSELS.PRIMARY_GEAR = GEAR_CODES.GEAR_CODE WHERE VESSEL_NAME = '",
+      vessel,
+      "'"
+    )
+  )$FMCODE
+  ## Convert gear to the correct format
+  if(gear=="F"){
+    gear="fixed"
+  } else {
+    if(gear=="M"){
+      gear="mobile"
+    } else {
+      gear="other"
+    }
+  }
+  metadata=data.frame(
+    "time_range"=1,
+    "Fathom"=.1,
+    "transmitter"='yes',
+    "mac_addr"=loggerdat$HARDWARE_ADDRESS,
+    "gear_type"=gear,
+    "vessel_num"=loggerdat$EMOLT_NUM,
+    "vessel_name"=vessel,
+    "tilt"='no'
+  )
+  parameters=data.frame(
+    "path"="/home/pi/rtd_global/",
+    "sensor_type"=loggerdat$MAKE,
+    "time_diff_nke"=0,
+    "tem_unit"="Fahrenheit",
+    "depth_unit"="Fathoms",
+    "local_time"=-4
+  )
+  # py_run_string("import json")
+  # ## Create the metadata dictionary
+  # py_run_string(
+  #   paste0(
+  #     "metadata = {'time_range': 1,'Fathom': .1,'transmitter': 'yes','mac_addr': '",
+  #       loggerdat$HARDWARE_ADDRESS,
+  #       "','moana_SN':'",
+  #       loggerdat$SERIAL_NUMBER,
+  #       "','gear_type': '",
+  #       gear,
+  #       "','vessel_num': ",
+  #       loggerdat$EMOLT_NUM,
+  #       ", 'vessel_name': '",
+  #       vessel,
+  #       "','tilt': 'no'}"
+  #     )
+  #   )
+  # py_run_string("with open('metadata.json','w') as fp: json.dump(metadata,fp)")
+  # ## Create the parameters dictionary
+  # py_run_string(
+  #   paste0(
+  #     "parameters = {'path': '/home/pi/rtd_global/', 'sensor_type': ['",
+  #     loggerdat$MAKE,
+  #     "'], 'time_diff_nke': 0, 'tem_unit': 'Fahrenheit', 'depth_unit': 'Fathoms', 'local_time': -4 }"
+  #   )
+  # )
+  # py_run_string("with open('parameters.json','w') as fp: json.dump(parameters,fp)")
+
+  list("metadata"=metadata,"parameters"=parameters)
+
 }
 #* Record status updates and haul average data transmissions via satellite
 #* @param datastring The payload from a Rockblock
