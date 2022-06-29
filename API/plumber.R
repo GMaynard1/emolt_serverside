@@ -1,4 +1,5 @@
 # plumber.R
+require(config)
 require(jsonlite)
 require(plumber)
 require(readr)
