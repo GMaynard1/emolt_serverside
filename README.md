@@ -3,3 +3,4 @@ This repository is a scientific product and is not official communication of the
 emolt_functions.py has some commonly used functions 
 
 read_s3_eMOLT_DO.py reads Lowell's DissolvedOxygen and WaterDetect files on AWS and generates csv, emolt_do.dat, and csv files
+getnavy.py reads ODN's ERDDAP-served navy-funded hauls and creates "emolt_navy.dat"
