@@ -1,6 +1,7 @@
 # plumber.R
 require(jsonlite)
 require(plumber)
+require(readtext)
 require(reticulate)
 require(RMySQL)
 require(wkb)
@@ -92,54 +93,143 @@ function(vessel){
       gear="other"
     }
   }
-  metadata=data.frame(
-    "time_range"=1,
-    "Fathom"=.1,
-    "transmitter"='yes',
-    "mac_addr"=loggerdat$HARDWARE_ADDRESS,
-    "gear_type"=gear,
-    "vessel_num"=loggerdat$EMOLT_NUM,
-    "vessel_name"=vessel,
-    "tilt"='no'
+  ## Create a filename based on the vessel name and date
+  filename=paste0(
+    vessel,
+    "_",
+    Sys.Date(),
+    "_setup_rtd.py"
   )
-  parameters=data.frame(
-    "path"="/home/pi/rtd_global/",
-    "sensor_type"=loggerdat$MAKE,
-    "time_diff_nke"=0,
-    "tem_unit"="Fahrenheit",
-    "depth_unit"="Fathoms",
-    "local_time"=-4
+  ## Create the metadata dictionary
+  keys=c(
+    "'time_range'",
+    "'Fathom'",
+    "'transmitter'",
+    "'mac_addr'",
+    "'gear_type'",
+    "'vessel_num'",
+    "'vessel_name'",
+    "'tilt'"
   )
-  # py_run_string("import json")
-  # ## Create the metadata dictionary
-  # py_run_string(
-  #   paste0(
-  #     "metadata = {'time_range': 1,'Fathom': .1,'transmitter': 'yes','mac_addr': '",
-  #       loggerdat$HARDWARE_ADDRESS,
-  #       "','moana_SN':'",
-  #       loggerdat$SERIAL_NUMBER,
-  #       "','gear_type': '",
-  #       gear,
-  #       "','vessel_num': ",
-  #       loggerdat$EMOLT_NUM,
-  #       ", 'vessel_name': '",
-  #       vessel,
-  #       "','tilt': 'no'}"
-  #     )
-  #   )
-  # py_run_string("with open('metadata.json','w') as fp: json.dump(metadata,fp)")
-  # ## Create the parameters dictionary
-  # py_run_string(
-  #   paste0(
-  #     "parameters = {'path': '/home/pi/rtd_global/', 'sensor_type': ['",
-  #     loggerdat$MAKE,
-  #     "'], 'time_diff_nke': 0, 'tem_unit': 'Fahrenheit', 'depth_unit': 'Fathoms', 'local_time': -4 }"
-  #   )
-  # )
-  # py_run_string("with open('parameters.json','w') as fp: json.dump(parameters,fp)")
-
-  list("metadata"=metadata,"parameters"=parameters)
-
+  values=c(
+    1,
+    .1,
+    "'yes'",
+    paste0("'",loggerdat$HARDWARE_ADDRESS,"'"),
+    paste0("'",gear,"'"),
+    loggerdat$EMOLT_NUM,
+    paste0("'",vessel,"'"),
+    "'no'"
+  )
+  py_run_string(
+    paste0(
+      c("listA=(",
+        paste0(
+          keys,
+          collapse=","
+          ),
+        ")"
+        ),
+      collapse=""
+    )
+  )
+  py_run_string(
+    paste0(
+      c("listB=(",
+        paste0(
+          values,
+          collapse=","
+        ),
+        ")"
+      ),
+      collapse=""
+    )
+  )
+  py_run_string(
+    "data=dict(zip(listA,listB))"
+  )
+  ## Write the metadata dictionary to the file
+  py_run_string("import json")
+  py_run_string(
+    paste0(
+      "with open('",
+      filename,
+      "','w') as fp: fp.write('metadata = ')"
+    )
+  )
+  py_run_string(
+    paste0(
+      "with open('",
+      filename,
+      "','a') as fp: json.dump(data,fp)"
+      )
+  )
+  ## Create the parameters dictionary
+  keys=c(
+    "'path'",
+    "'sensor_type'",
+    "'time_diff_nke'",
+    "'tem_unit'",
+    "'depth_unit'",
+    "'local_time'"
+  )
+  values=c(
+    "'/home/pi/rtd_global/'",
+    paste0("'",loggerdat$MAKE,"'"),
+    0,
+    "'Fahrenheit'",
+    "'Fathoms'",
+    -4
+  )
+  py_run_string(
+    paste0(
+      c("listA=(",
+        paste0(
+          keys,
+          collapse=","
+        ),
+        ")"
+      ),
+      collapse=""
+    )
+  )
+  py_run_string(
+    paste0(
+      c("listB=(",
+        paste0(
+          values,
+          collapse=","
+        ),
+        ")"
+      ),
+      collapse=""
+    )
+  )
+  py_run_string(
+    "data=dict(zip(listA,listB))"
+  )
+  ## Write the parameters dictionary to file
+  py_run_string(
+    paste0(
+      "with open('",
+      filename,
+      "','a') as fp: fp.write(",
+      '"""\nparameters = """)'
+    )
+  )
+  py_run_string(
+    paste0(
+      "with open('",
+      filename,
+      "','a') as fp: json.dump(data,fp)"
+    )
+  )
+  ## Read in completed file
+  x = file(filename,open='r')
+  y=readLines(x)
+  close(x)
+  ## Return the text as a file to the end user
+  as_attachment(y,"setup_rtd.py")
 }
 #* Record status updates and haul average data transmissions via satellite
 #* @param datastring The payload from a Rockblock
