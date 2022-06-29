@@ -8,7 +8,7 @@ require(RMySQL)
 require(wkb)
 
 ## Read in configuration values
-db_config=config::get(file="API/config.yml")$dev_remote
+db_config=config::get(file="config.yml")$dev_local
 
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
@@ -96,6 +96,7 @@ function(vessel){
   }
   ## Create a filename based on the vessel name and date
   filename=paste0(
+    "/etc/plumber/control_files/",
     vessel,
     "_",
     Sys.Date(),
