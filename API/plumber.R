@@ -1,7 +1,7 @@
 # plumber.R
 require(jsonlite)
 require(plumber)
-require(readtext)
+require(readr)
 require(reticulate)
 require(RMySQL)
 require(wkb)
@@ -41,7 +41,7 @@ function(vessel="ALL"){
 
 #* Create and export control file during vessel setup
 #* @param vessel The vessel you'd like to create a control file for
-#* @serializer unboxedJSON
+#* @serializer cat
 #* @get /getControl_File
 function(vessel){
   ## Connect to database
@@ -225,9 +225,7 @@ function(vessel){
     )
   )
   ## Read in completed file
-  x = file(filename,open='r')
-  y=readLines(x)
-  close(x)
+  y=read_file(filename)
   ## Return the text as a file to the end user
   as_attachment(y,"setup_rtd.py")
 }
