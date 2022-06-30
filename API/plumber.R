@@ -8,7 +8,11 @@ require(RMySQL)
 require(wkb)
 
 ## Read in configuration values
-db_config=config::get(file="config.yml")$dev_local
+if(Sys.info()[["nodename"]]=="emoltdev"){
+  db_config=config::get(file="config.yml")$dev_local
+} else {
+  db_config=config::get(file="config.yml")$dev_remote
+}
 
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
