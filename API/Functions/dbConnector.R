@@ -1,5 +1,5 @@
 ## Reads in a yaml database configuration and connects to a MySQL database
-dbConnector = function(db_Config){
+dbConnector = function(db_config){
   require(RMySQL)
   ## Connect to database
   mydb=dbConnect(
