@@ -1,4 +1,5 @@
 # plumber.R
+## Load necessary libraries
 require(config)
 require(jsonlite)
 require(plumber)
@@ -7,12 +8,20 @@ require(reticulate)
 require(RMySQL)
 require(wkb)
 
-## Read in configuration values
+## Read in functions and database configuration values
 if(Sys.info()[["nodename"]]=="emoltdev"){
+  setwd("/etc/plumber/")
   db_config=config::get(file="config.yml")$dev_local
 } else {
+  setwd("C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/")
   db_config=config::get(file="config.yml")$dev_remote
 }
+
+source("Functions/create_py_dict.R")
+source("Functions/dbConnector.R")
+source("Functions/loggerdat.R")
+source("Functions/vessel_name.R")
+source("Functions/vesseldat.R")
 
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
@@ -20,74 +29,55 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
 
 
 
-#* Get MAC addresses associated with vessels
+#* Get logger MAC addresses associated with vessels
 #* @param vessel The vessel of interest
 #* @get /readMAC
 function(vessel="ALL"){
   ## Connect to database
-  mydb=dbConnect(
-    MySQL(), 
-    user=db_config$username, 
-    password=db_config$password, 
-    dbname=db_config$db, 
-    host=db_config$host,
-    port=db_config$port
-    )
-  data=dbGetQuery(
-    conn=mydb,
-    statement="SELECT * FROM vessel_mac"
-  )
-  if(vessel=="ALL"){
-    print(data)
-  } else {
-    print(subset(data,data$VESSEL_NAME==toupper(vessel)))
-  }
+  mydb=dbConnector(db_config)
+  
+  ## Standardize vessel name
+  vessel=vessel_name(vessel)
+  
+  ## Download and display data
+  loggerdat(vessel)
 }
 
-#* Create and export control file during vessel setup
+#* Create and export control file for Lowell logger system during vessel setup
+#* @param vessel The vessel you'd like to create a control file for
+#* @serializer cat
+#* @get /getControl_File_Lowell
+function(vessel){
+  ## Connect to database
+  mydb=dbConnector(db_config)
+  
+  ## Standardize the vessel name
+  vessel=vessel_name(vessel)
+  
+  ## Query the logger metadata out of the database
+  loggerdat=loggerdat(vessel)
+  
+  ## Query the transmitter metadata out of the database
+  transdat=transdat(vessel)
+}
+#* Create and export control file for Moana logger system during vessel setup
 #* @param vessel The vessel you'd like to create a control file for
 #* @serializer cat
 #* @get /getControl_File
 function(vessel){
   ## Connect to database
-  mydb=dbConnect(
-    MySQL(), 
-    user=db_config$username, 
-    password=db_config$password, 
-    dbname=db_config$db, 
-    host=db_config$host,
-    port=db_config$port
-  )
+  mydb=dbConnector(db_config)
   
   ## Standardize the vessel name to all uppercase, no underscore, remove the 
   ## leading characters F/V if they exist
-  vessel=gsub(
-      pattern="F/V",
-      replacement="",
-      x=gsub(
-        pattern="_",
-        replacement=" ",
-        x=toupper(vessel)
-      )
-    )
+  vessel=vessel_name(vessel)
+  
   ## Query the logger metadata out of the database
-  loggerdat=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM vessel_mac WHERE VESSEL_NAME = '",
-      vessel,
-      "' AND EQUIPMENT_TYPE = 'LOGGER'"
-    )
-  )
+  loggerdat=loggerdat(vessel)
+  
   ## Query the gear type out of the database
-  gear=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT FMCODE FROM VESSELS INNER JOIN GEAR_CODES ON VESSELS.PRIMARY_GEAR = GEAR_CODES.GEAR_CODE WHERE VESSEL_NAME = '",
-      vessel,
-      "'"
-    )
-  )$FMCODE
+  gear=vesseldat(vessel)$FMCode
+  
   ## Convert gear to the correct format
   if(gear=="F"){
     gear="fixed"
@@ -99,13 +89,22 @@ function(vessel){
     }
   }
   ## Create a filename based on the vessel name and date
-  filename=paste0(
-    "/etc/plumber/control_files/",
-    vessel,
-    "_",
-    Sys.Date(),
-    "_setup_rtd.py"
-  )
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    filename=paste0(
+      "/etc/plumber/control_files/",
+      vessel,
+      "_",
+      Sys.Date(),
+      "_setup_rtd.py"
+    )
+  } else {
+    filename=paste0(
+      vessel,
+      "_",
+      Sys.Date(),
+      "_setup_rtd.py"
+    )
+  }
   ## Create the metadata dictionary
   keys=c(
     "'time_range'",
@@ -127,33 +126,7 @@ function(vessel){
     paste0("'",vessel,"'"),
     "'no'"
   )
-  py_run_string(
-    paste0(
-      c("listA=(",
-        paste0(
-          keys,
-          collapse=","
-          ),
-        ")"
-        ),
-      collapse=""
-    )
-  )
-  py_run_string(
-    paste0(
-      c("listB=(",
-        paste0(
-          values,
-          collapse=","
-        ),
-        ")"
-      ),
-      collapse=""
-    )
-  )
-  py_run_string(
-    "data=dict(zip(listA,listB))"
-  )
+  create_py_dict(keys,values)
   ## Write the metadata dictionary to the file
   py_run_string("import json")
   py_run_string(
@@ -187,33 +160,7 @@ function(vessel){
     "'Fathoms'",
     -4
   )
-  py_run_string(
-    paste0(
-      c("listA=(",
-        paste0(
-          keys,
-          collapse=","
-        ),
-        ")"
-      ),
-      collapse=""
-    )
-  )
-  py_run_string(
-    paste0(
-      c("listB=(",
-        paste0(
-          values,
-          collapse=","
-        ),
-        ")"
-      ),
-      collapse=""
-    )
-  )
-  py_run_string(
-    "data=dict(zip(listA,listB))"
-  )
+  create_py_dict(keys,values)
   ## Write the parameters dictionary to file
   py_run_string(
     paste0(

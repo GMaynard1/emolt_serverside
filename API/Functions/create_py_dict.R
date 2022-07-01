@@ -1,0 +1,30 @@
+## Creates a python dictionary from a vector of keys and a vector of values
+create_py_dict=function(keys,values){
+  py_run_string(
+    paste0(
+      c("listA=(",
+        paste0(
+          keys,
+          collapse=","
+        ),
+        ")"
+      ),
+      collapse=""
+    )
+  )
+  py_run_string(
+    paste0(
+      c("listB=(",
+        paste0(
+          values,
+          collapse=","
+        ),
+        ")"
+      ),
+      collapse=""
+    )
+  )
+  py_run_string(
+    "data=dict(zip(listA,listB))"
+  )
+}
