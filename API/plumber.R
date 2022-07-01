@@ -8,21 +8,39 @@ require(reticulate)
 require(RMySQL)
 require(wkb)
 
+## Vector of functions to read in
+functions=c(
+  'commsdat.R',
+  'create_py_dict.R',
+  'dbConnector.R',
+  'loggerdat.R',
+  'vessel_name.R',
+  'vesseldat.R'
+)
 ## Read in functions and database configuration values
 if(Sys.info()[["nodename"]]=="emoltdev"){
-  setwd("/etc/plumber/")
-  db_config=config::get(file="config.yml")$dev_local
+  db_config=config::get(file="/etc/plumber/config.yml")$dev_local
+  for(i in 1:length(functions)){
+    source(
+      paste0(
+        "/etc/plumber/Functions/",
+        functions[i]
+      )
+    )
+  }
 } else {
-  setwd("C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/")
-  db_config=config::get(file="config.yml")$dev_remote
+  db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$dev_remote
+  for(i in 1:length(functions)){
+    source(
+      paste0(
+        "C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Functions/",
+        functions[i]
+      )
+    )
+  }
 }
 
-source("Functions/commsdat.R")
-source("Functions/create_py_dict.R")
-source("Functions/dbConnector.R")
-source("Functions/loggerdat.R")
-source("Functions/vessel_name.R")
-source("Functions/vesseldat.R")
+
 
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
@@ -41,7 +59,7 @@ function(vessel="ALL"){
   vessel=vessel_name(vessel)
   
   ## Download and display data
-  loggerdat(vessel)
+  loggerdat(vessel,mydb)
 }
 
 #* Create and export control file for Lowell logger system during vessel setup
@@ -56,13 +74,13 @@ function(vessel){
   vessel=vessel_name(vessel)
   
   ## Query the logger metadata out of the database
-  loggerdat=loggerdat(vessel)
+  loggerdat=loggerdat(vessel,mydb)
   
   ## Query the comms unit metadata out of the database
-  commsdat=commsdat(vessel)
+  commsdat=commsdat(vessel,mydb)
   
   ## Query the vessel data out of the database
-  vesseldat=vesseldat(vessel)
+  vesseldat=vesseldat(vessel,mydb)
   
   ## Convert gear to the correct format
   gear=vesseldat$FMCODE
@@ -141,10 +159,10 @@ function(vessel){
   vessel=vessel_name(vessel)
   
   ## Query the logger metadata out of the database
-  loggerdat=loggerdat(vessel)
+  loggerdat=loggerdat(vessel,mydb)
   
   ## Query the gear type out of the database
-  gear=vesseldat(vessel)$FMCODE
+  gear=vesseldat(vessel,mydb)$FMCODE
   
   ## Convert gear to the correct format
   if(gear=="F"){

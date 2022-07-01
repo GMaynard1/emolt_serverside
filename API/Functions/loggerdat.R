@@ -1,13 +1,13 @@
 ## Select logger data from the database
-loggerdat=function(vessel){
+loggerdat=function(vessel,dbconn){
   if(vessel=="ALL"){
     dbGetQuery(
-      conn=mydb,
+      conn=dbconn,
       statement="SELECT * FROM vessel_mac WHERE EQUIPMENT_TYPE = 'LOGGER'"
     )
   } else {
     dbGetQuery(
-      conn=mydb,
+      conn=dbconn,
       statement=paste0(
         "SELECT * FROM vessel_mac WHERE VESSEL_NAME = '",
         vessel,
