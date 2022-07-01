@@ -17,6 +17,7 @@ functions=c(
   'vessel_name.R',
   'vesseldat.R'
 )
+
 ## Read in functions and database configuration values
 if(Sys.info()[["nodename"]]=="emoltdev"){
   db_config=config::get(file="/etc/plumber/config.yml")$dev_local
