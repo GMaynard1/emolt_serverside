@@ -17,6 +17,7 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
   db_config=config::get(file="config.yml")$dev_remote
 }
 
+source("Functions/commsdat.R")
 source("Functions/create_py_dict.R")
 source("Functions/dbConnector.R")
 source("Functions/loggerdat.R")
@@ -57,8 +58,75 @@ function(vessel){
   ## Query the logger metadata out of the database
   loggerdat=loggerdat(vessel)
   
-  ## Query the transmitter metadata out of the database
-  transdat=transdat(vessel)
+  ## Query the comms unit metadata out of the database
+  commsdat=commsdat(vessel)
+  
+  ## Query the vessel data out of the database
+  vesseldat=vesseldat(vessel)
+  
+  ## Convert gear to the correct format
+  gear=vesseldat$FMCODE
+  if(gear=="F"){
+    gear="fixed"
+  } else {
+    if(gear=="M"){
+      gear="mobile"
+    } else {
+      gear="other"
+    }
+  }
+  
+  ## Convert comms make to the correct format
+  if(commsdat$MAKE=="ROCKBLOCK"){
+    transmitter='rock'
+  } else {
+    if(commsdat$MAKE=="AP3"){
+      transmitter='ap3'
+    }
+  }
+  ## Create a filename based on the vessel name and date
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    filename=paste0(
+      "/etc/plumber/control_files/",
+      vessel,
+      "_",
+      Sys.Date(),
+      "_control_file.txt"
+    )
+  } else {
+    filename=paste0(
+      vessel,
+      "_",
+      Sys.Date(),
+      "_control_file.txt"
+    )
+  }
+  
+  ## Use tab separated strings to create the file
+  file.create(filename)
+  fileconn=file(filename)
+  contents=c(
+    paste0(5,"\t# logger time range(minutes), set it to 5 , during the test. Set it to the shortest haul time. Unit Minute"),
+    paste0(0,"\t# Fathom, Set to 0 for test, set to 15 after the test"),
+    "yes\t# Set to 'yes', if there is a transmitter, otherwise, set to 'no'",
+    paste0(loggerdat$HARDWARE_ADDRESS,"\t# Put logger Mac address in"),
+    paste0(gear,"\t# boat type , mobile or fixed"),
+    paste0(vesseldat$EMOLT_NUM,"\t# Vessel Number"),
+    paste0(vesseldat$VESSEL_NAME,"\t# Vessel Name"),
+    "no\t# record tilt data?",
+    "60\t#",
+    paste0(transmitter,'\t# transmitter name')
+  )
+  writeLines(
+    text=contents,
+    con=fileconn,
+    sep="\n"
+  )
+  close(fileconn)
+  ## Read in completed file
+  y=read_file(filename)
+  ## Return the text as a file to the end user
+  as_attachment(y,"control_file.txt")
 }
 #* Create and export control file for Moana logger system during vessel setup
 #* @param vessel The vessel you'd like to create a control file for
@@ -76,7 +144,7 @@ function(vessel){
   loggerdat=loggerdat(vessel)
   
   ## Query the gear type out of the database
-  gear=vesseldat(vessel)$FMCode
+  gear=vesseldat(vessel)$FMCODE
   
   ## Convert gear to the correct format
   if(gear=="F"){
