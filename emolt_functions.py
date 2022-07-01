@@ -9,7 +9,47 @@ import ftplib
 import netCDF4
 import numpy as np
 import pandas as pd
+import mysql.connector
+import yaml
 
+def get_mac(vessel):
+    # given vessel returns MAC address of logger
+    # by accessing database on remote machine
+    # derived from George's "dbConnect.py" routine by JiM in June 2022
+    # open the database connection config file
+    vessel=vessel.upper().replace('_',' ')
+    with open ("config.yml","r") as yamlfile:
+      dbConfig=yaml.load(yamlfile, Loader=yaml.FullLoader)
+
+    ## Connect to the development database  
+    devconn = mysql.connector.connect(
+      user = dbConfig['default']['db_remote']['username'],
+      password = dbConfig['default']['db_remote']['password'],
+      host = dbConfig['default']['db_remote']['host'],
+      port = dbConfig['default']['db_remote']['port'],
+      database = dbConfig['default']['db_remote']['dbname']
+    )
+
+    ## Query all MAC addresses associated with loggers
+    cursor = devconn.cursor()
+
+    query = "SELECT VESSEL_NAME,HARDWARE_ADDRESS FROM vessel_mac WHERE EQUIPMENT_TYPE = 'LOGGER'"
+
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+
+    ## For each record returned by the query, print the sensor type, MAC address,
+    ##  vessel name, and emolt vessel number from the telemetry_status Google doc
+    for row in rows:
+        #print(row)
+        if row[0]==vessel:
+            result=row[1]
+            break
+        else:
+            result='none'
+    return result
+      
 def eMOLT_cloud(ldata):
         # function to upload a list of files to SD machine
         for filename in ldata:
