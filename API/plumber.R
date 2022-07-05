@@ -125,8 +125,8 @@ function(vessel){
   file.create(filename)
   fileconn=file(filename)
   contents=c(
-    paste0(5,"\t# logger time range(minutes), set it to 5 , during the test. Set it to the shortest haul time. Unit Minute"),
-    paste0(0,"\t# Fathom, Set to 0 for test, set to 15 after the test"),
+    paste0(10,"\t# logger time range(minutes), set it to 5 , during the test. Set it to the shortest haul time. Unit Minute"),
+    paste0(3,"\t# Fathom, Set to 0 for test, set to 15 after the test"),
     "yes\t# Set to 'yes', if there is a transmitter, otherwise, set to 'no'",
     paste0(loggerdat$HARDWARE_ADDRESS,"\t# Put logger Mac address in"),
     paste0(gear,"\t# boat type , mobile or fixed"),
