@@ -2,6 +2,7 @@
 """
 Created on Tue Jun 28 13:30:26 2022
 generating haul-averaged bottom temps from ODN's ERDDAP-served trawlers
+Note: removed IP address to keep access limited 
 
 @author: James.manning
 """
@@ -9,7 +10,7 @@ import pandas as pd
 import numpy as np
 from emolt_functions import eMOLT_cloud
 f_output=open('emolt_navy.dat','w')
-url='http://54.157.207.207/erddap/tabledap/ONR_FV_NRT.csvp?tow_id%2Ctime%2Clatitude%2Clongitude%2Cdepth%2Ctemperature%2Cvessel_id%2Csegment_type&segment_type=%22Fishing%22'
+url='http://<ip_address_goes_here>/erddap/tabledap/ONR_FV_NRT.csvp?tow_id%2Ctime%2Clatitude%2Clongitude%2Cdepth%2Ctemperature%2Cvessel_id%2Csegment_type&segment_type=%22Fishing%22'
 df=pd.read_csv(url)
 df['datetime']=pd.to_datetime(df['time (UTC)']).dt.tz_localize(None)
 df.set_index('datetime',inplace=True)
