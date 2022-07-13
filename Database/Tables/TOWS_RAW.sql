@@ -5,9 +5,9 @@ CREATE TABLE `TOWS_RAW`(
   `TIMESTAMP` datetime NOT NULL COMMENT 'When the data point was collected',
   `LATITUDE` decimal(10,5) NOT NULL COMMENT 'Latitude at which the data point was collected',
   `LONGITUDE` decimal(10,5) NOT NULL COMMENT 'Longitude at which the data point was collected',
-  `DEPTH` decimal(10,3) NULL COMMENT 'Depth (m) at which the data point was collected',
-  `TEMPERATURE` decimal(10,3) NULL COMMENT 'Temperature (Celsius)',
-  `DISSOLVED_OXYGEN` decimal(10,5) NULL COMMENT 'Dissolved oxygen level',
+  `TR_VALUE` decimal(10,5) NOT NULL COMMENT 'Observed value of a parameter at a given time and location',
+  `TR_PARAMETER` set('TEMP','DEPTH','DO','PH','SPEED','DIR','N_VELO','E_VELO','YAW','PITCH','ROLL','HEADING','TILT_FROM_VERT','TURBIDITY','CONDUCTIVITY','PAR') NOT NULL COMMENT "Parameters that can be measured",
+  `TR_UOM` set('DEGREES CELSIUS','m','PERCENT','mg/L','pH','cm/s','BEARING DEGREES','FTU','uS','umol/s') NOT NULL COMMENT "Units of measure parameter values are recorded in",
   `DATA_FLAG_1` varchar(3) NULL COMMENT 'Placeholder',
   `DATA_FLAG_2` varchar(3) NULL COMMENT 'Placeholder',
   
