@@ -26,14 +26,17 @@ import emolt_functions
 min_haul_time=5 # number of minutes considered for hauling on deck
 min_equilibrate=15 # number of minutes to allow Lowell probe to equilibrate
 est_depth='no' # 'yes' to use NGDC depths
-vessel='Boat_of_Jim'
-mac='60-77-71-22-c9-cd/'
-vn='99' #KM
+#vessel='Boat_of_Jim'
+#mac='60-77-71-22-c9-cd/'
+#vn='99' #KM
+vessel='Grace_Sarah'
+mac='58-93-d8-a4-b6-35/'
+vn='70' #GS
 sensor='li_' # li_ for Lowell Instruments
 
-# eMOLT credentials (WARNING: THESE NEEDED TO BE REMOVED BEFORE UPLOADING TO GITHUB)
-access_key = ''
-access_pwd = ''
+# eMOLT credentials (WARNING: THESE NEED TO BE REMOVED BEFORE UPLOADING TO GITHUB)
+access_key = ''#' '
+access_pwd = ''#' 
 
 s3_bucket_name = 'bkt-cfa'  # bucket name
 path = 'aws_files/'  # path to store the data
@@ -83,14 +86,16 @@ for file in bucket_list:
             df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False)
             ldf_do.append(df)
         elif 'gps' in os.path.basename(file):
-            df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False) # need to read this differently
-            ldf_gps.append(df)
+            if file[-4:]+'_WaterDetect.csv' in bucket_list:
+                df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False) # need to read this differently
+                ldf_gps.append(df)
         elif 'WaterDetect' in os.path.basename(file):
             df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False) # need to read this differently
             ldf_wd.append(df)
     except:
         print('Not working', file)
 
+# we need to remove gps file from the bucket_list if there are no data files with same base
 # merging the dataframes
 count=0
 filenames = [i for i in bucket_list  if 'gps' in i] # where bucket_list is 3 times as many elements as filenames
