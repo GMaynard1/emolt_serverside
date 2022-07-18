@@ -5,6 +5,7 @@
 * Purpose: View all equipment that is currently installed (was installed and does 
 *           not have a recorded removal)
 */
+CREATE OR REPLACE VIEW current_installs AS
 SELECT 
   zz_all_installs.INSTALL_DATE,
   zz_all_installs.END_INVENTORY_ID,
