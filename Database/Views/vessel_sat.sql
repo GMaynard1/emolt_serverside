@@ -6,6 +6,7 @@
 */
 CREATE OR REPLACE VIEW vessel_sat AS
 SELECT
+  zz_vessel_visits.VESSEL_ID,
   zz_vessel_visits.VESSEL_NAME,
   zz_vessel_visits.EMOLT_NUM,
   zz_vessel_visits.VISIT_DATE,
@@ -20,3 +21,4 @@ FROM
   zz_installed_gear_and_addresses
   ON zz_vessel_visits.VISIT_DATE = zz_installed_gear_and_addresses.max_date AND zz_vessel_visits.END_INVENTORY_ID = zz_installed_gear_and_addresses.END_INVENTORY_ID
 WHERE zz_installed_gear_and_addresses.ADDRESS_TYPE LIKE '%IMEI%'
+;
