@@ -1,6 +1,6 @@
 CREATE TABLE `TOWS_RAW`(
   `TOWS_RAW_ID` integer NOT NULL AUTO_INCREMENT COMMENT 'UID for this table',
-  `TOWS_SEGMENT_ID` integer NULL COMMENT 'Links to a record in the TOWS_SEGMENTS table',
+  `TOW_SEGMENT_ID` integer NULL COMMENT 'Links to a record in the TOWS_SEGMENTS table',
   `TIMESTAMP` datetime NOT NULL COMMENT 'When the data point was collected',
   `LATITUDE` decimal(10,5) NOT NULL COMMENT 'Latitude at which the data point was collected',
   `LONGITUDE` decimal(10,5) NOT NULL COMMENT 'Longitude at which the data point was collected',
