@@ -2,6 +2,7 @@
 ## Load necessary libraries
 require(config)
 require(jsonlite)
+require(lubridate)
 require(plumber)
 require(readr)
 require(reticulate)
@@ -13,7 +14,9 @@ functions=c(
   'commsdat.R',
   'create_py_dict.R',
   'dbConnector.R',
+  'dbDisconnectAll.R',
   'loggerdat.R',
+  'standard_mac.R',
   'vessel_name.R',
   'vesseldat.R'
 )
@@ -47,7 +50,191 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
 #* @apiDescription This is the development API for the eMOLT project.
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov") 
 
-
+#* Import information about a new logger
+#* @param loggerdat
+#* @post /loggerload
+function(loggerdat){
+  ## Connect to database
+  mydb = dbConnector(db_config)
+  
+  ## Read in the json object
+  loggerdat=parse_json(loggerdat)
+  
+  ## Lookup logger by serial number
+  loggerExists=loggerdat$SN%in%dbGetQuery(
+    conn=mydb,
+    statement="SELECT * FROM EQUIPMENT_INVENTORY WHERE EQUIPMENT_TYPE = 'LOGGER'"
+  )$SERIAL_NUMBER
+  
+  ## If the logger already exists, return an error
+  if(loggerExists){
+    return("Logger already exists. Please use the 'UpdateLogger' function if you wish to edit an existing logger.")
+    break()
+  }
+  ## If the MAC address doesn't have the right number of characters, return an error
+  if(nchar(loggerdat$MAC)%in%c(17,12)==FALSE){
+    return("MAC address has an incorrect number of characters. Please try xx:xx:xx:xx:xx:xx")
+    break()
+  }
+  ## Attempt to standardize the MAC address
+    MAC=standard_mac(loggerdat$MAC)
+    if(MAC=="ERROR"){
+      return("MAC address improperly formatted. Please try xx:xx:xx:xx:xx:xx")
+      break()
+    }  
+    ## Otherwise, add the logger information to the database
+    if(Sys.info()[["nodename"]]=="emoltdev"){
+      db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+    } else {
+      db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+    }
+    conn=dbConnector(db_config2)
+    ## Reformat location
+    loggerdat$Location=ifelse(
+      loggerdat$Location==1,
+      "HOME",
+      ifelse(
+        loggerdat$Location==2,
+        "LAB",
+        ifelse(
+          loggerdat$Location==3,
+          "VESSEL",
+          ifelse(
+            loggerdat$Location==4,
+            "MANUFACTURER",
+            ifelse(
+              loggerdat$Location==5,
+              "LOST",
+              ifelse(
+                loggerdat$Location==6,
+                "DECOMMISSIONED",
+                "UNK"
+              )
+            )
+          )
+        )
+      )
+    )
+    if(loggerdat$Location=="UNK"){
+      return("Logger location invalid, please select a number from the provided list")
+      break()
+    }
+    ## Look up custodian
+    custodian=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM CONTACTS WHERE FIRST_NAME = '",
+        loggerdat$cFirst_name,
+        "' AND LAST_NAME = '",
+        loggerdat$cLast_name,
+        "'"
+      )
+    )$CONTACT_ID
+    if(length(custodian)!=1){
+      custodian=dbGetQuery(
+        conn=mydb,
+        statement=paste0(
+          "SELECT * FROM CONTACTS WHERE FIRST_NAME LIKE '%",
+          loggerdat$cFirst_name,
+          "%' OR LAST_NAME LIKE '%",
+          loggerdat$cLast_name,
+          "%'"
+        )
+      )
+      return(
+        paste0(
+          "No custodian found. Please try again. Similar entries include: ",
+          paste(
+            custodian$FIRST_NAME,
+            custodian$LAST_NAME
+          )
+        )
+      )
+      break()
+    }
+    ## Check which optional variables are present to form the query
+    opt=""
+    optvals=""
+    if(is.null(loggerdat$Software_version)==FALSE){
+      opt=paste0(opt,",`SOFTWARE_VERSION`")
+      optvals=paste0(optvals,",'",loggerdat$Software_version,"'")
+    }
+    if(is.null(loggerdat$Firmware_version)==FALSE){
+      opt=paste0(opt,",`FIRMWARE_VERSION`")
+      optvals=paste0(optvals,",'",loggerdat$Firmware_version,"'")
+    }
+    if(is.null(loggerdat$Purchase_date)==FALSE){
+      opt=paste0(opt,",`PURCHASE_DATE`")
+      optvals=paste0(optvals,",'",loggerdat$Purchase_date,"'")
+    }
+    if(is.null(loggerdat$Purchase_price)==FALSE){
+      opt=paste0(opt,",`PURCHASE_PRICE`")
+      optvals=paste0(optvals,",",loggerdat$Purchase_price)
+    }
+    ## Form the insert statement
+    statement=paste0(
+      "INSERT INTO `EQUIPMENT_INVENTORY`(`INVENTORY_ID`,`SERIAL_NUMBER`,`EQUIPMENT_TYPE`,`MAKE`,`MODEL`,`CUSTODIAN`,`CURRENT_LOCATION`",
+      opt,
+      ") VALUES ( 0,'",
+      loggerdat$SN,
+      "','LOGGER','",
+      toupper(loggerdat$Make),
+      "','",
+      toupper(loggerdat$Model),
+      "',",
+      custodian,
+      ",'",
+      loggerdat$Location,
+      "'",
+      optvals,
+      ")"
+    )
+    ## Run the statement
+    dbGetQuery(
+      conn=conn,
+      statement=statement
+    )
+    ## Update the hardware address table
+    eid=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT * FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
+        loggerdat$SN,
+        "' AND MAKE = '",
+        loggerdat$Make,
+        "' AND MODEL = '",
+        loggerdat$Model,
+        "'")
+    )$INVENTORY_ID
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "INSERT INTO `HARDWARE_ADDRESSES`(`HARDWARE_ID`,`INVENTORY_ID`,`ADDRESS_TYPE`,`HARDWARE_ADDRESS`) VALUES (0,",
+        eid,
+        ",'MAC','",
+        MAC,
+        "')"
+      )
+    )
+    return(
+      list(
+        "Status"=paste0("New logger added at ", Sys.time()),
+        "Summary"=dbGetQuery(
+          conn=mydb,
+          statement=paste0(
+            "SELECT * FROM EQUIPMENT_INVENTORY INNER JOIN HARDWARE_ADDRESSES ON WHERE SERIAL_NUMBER = '",
+            loggerdat$SN,
+            "' AND MAKE = '",
+            loggerdat$Make,
+            "' AND MODEL = '",
+            loggerdat$Model,
+            "'"
+          )
+        ),
+        "MAC"=MAC
+      )
+    )
+}
 
 #* Get logger MAC addresses associated with vessels
 #* @param vessel The vessel of interest
@@ -147,6 +334,7 @@ function(vessel){
   ## Return the text as a file to the end user
   as_attachment(y,"control_file.txt")
 }
+
 #* Create and export control file for Moana logger system during vessel setup
 #* @param vessel The vessel you'd like to create a control file for
 #* @serializer cat
@@ -269,9 +457,107 @@ function(vessel){
   ## Return the text as a file to the end user
   as_attachment(y,"setup_rtd.py")
 }
+
 #* Record status updates and haul average data transmissions via satellite
-#* @param datastring The payload from a Rockblock
+#* @param data A string of hex data from a ROCKBLOCK
+#* @param serial The serial number of the ROCKBLOCK
+#* @param imei The satellite transmitter's  International Mobile Equipment Identity
+#* @param transmit_time time of transmission in UTC
 #* @post /getRock_API
-function(datastring){
-  print("tbd")
+function(data,serial,imei,transmit_time){
+  ## Connect to database
+  mydb = dbConnector(db_config)
+  ## Decode the data
+  ## Convert the data from hex to character
+  datastring=rawToChar(
+    as.raw(
+      strtoi(
+        wkb::hex2raw(data),
+        16L
+      )
+    )
+  )
+  lat=as.numeric(strsplit(datastring,",")[[1]][1])
+  lon=as.numeric(strsplit(datastring,",")[[1]][2])
+  mean_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],1,3))
+  range_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],4,6))
+  soak_time=as.numeric(substr(strsplit(datastring,",")[[1]][3],7,11))
+  ## Mean time is the temporal midpoint of the haul and is estimated as the transmission time - the soak time / 2
+  transmit_time=ymd_hms(as.character(transmit_time))
+  mean_time=transmit_time-minutes(round(soak_time/2,0))
+  mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],12,15))/100
+  std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],16,19))/100
+  ## Logger id doesn't go anywhere yet, but will need to be included in the tow summary file
+  logger_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM EQUIPMENT_INVENTORY WHERE EQUIPMENT_TYPE = 'LOGGER' AND SERIAL_NUMBER = '",
+      substr(strsplit(datastring,"eee")[[1]][2],1,4),
+      "'"
+    )
+  )$INVENTORY_ID
+  ## Look up the vessel id from the inventory_id
+  vessel_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM vessel_sat WHERE SERIAL_NUMBER = '",
+      serial,
+      "' AND HARDWARE_ADDRESS = '",
+      imei,
+      "'"
+    )
+  )$VESSEL_ID
+  
+  ## Create the INSERT statement to load the data
+  ## Otherwise, add the logger information to the database
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  } else {
+    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  }
+  conn=dbConnector(db_config2)
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `TOWS`(`VESSEL_ID`,`MEAN_LATITUDE`,`MEAN_LONGITUDE`,`SOAK_TIME`,`MEAN_TIME`) VALUES (",
+      vessel_id,
+      ",",
+      lat,
+      ",",
+      lon,
+      ",",
+      soak_time,
+      ",'",
+      mean_time,
+      "')"
+    )
+  )
+  tow_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_TIME = '",
+      mean_time,
+      "'"
+    )
+  )$TOW_ID
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`) VALUES (",
+      tow_id,
+      ",",
+      mean_temp,
+      ",NULL,",
+      std_temp,
+      ",'TEMP','DEGREES CELSIUS','TELEMETRY'),(",
+      tow_id,
+      ",",
+      mean_depth,
+      ",",
+      range_depth,
+      ",NULL,'DEPTH','m','TELEMETRY')"
+    )
+  )
 }
