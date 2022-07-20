@@ -3,7 +3,6 @@
 require(config)
 require(jsonlite)
 require(lubridate)
-require(PKI)
 require(plumber)
 require(readr)
 require(reticulate)
@@ -546,19 +545,23 @@ function(data,serial,imei,transmit_time){
   dbGetQuery(
     conn=conn,
     statement=paste0(
-      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`) VALUES (",
+      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`,`TS_INSTRUMENT`) VALUES (",
       tow_id,
       ",",
       mean_temp,
       ",NULL,",
       std_temp,
-      ",'TEMP','DEGREES CELSIUS','TELEMETRY'),(",
+      ",'TEMP','DEGREES CELSIUS','TELEMETRY',",
+      logger_id,
+      "),(",
       tow_id,
       ",",
       mean_depth,
       ",",
       range_depth,
-      ",NULL,'DEPTH','m','TELEMETRY')"
+      ",NULL,'DEPTH','m','TELEMETRY',",
+      logger_id,
+      ")"
     )
   )
 }
