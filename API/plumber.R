@@ -3,6 +3,7 @@
 require(config)
 require(jsonlite)
 require(lubridate)
+require(PKI)
 require(plumber)
 require(readr)
 require(reticulate)
