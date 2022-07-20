@@ -1,5 +1,6 @@
 Login.R
 config.yml
+config_aws_cfa.yml
 .Rproj.user
 .Rhistory
 emolt_serverside.Rproj

@@ -2,6 +2,8 @@ This repository is a scientific product and is not official communication of the
 
 "emolt_functions.py" has some commonly used functions 
 
+"qaqc_emolt.py"  adds flagged data to emolt.dat and outputs "emolt_QCed.csv"
+
 "read_s3_eMOLT.py" reads Lowell's Temperature and Presure files on AWS and generates csv, emolt_AWS.dat, and csv files
 
 "read_s3_eMOLT_DO.py" reads Lowell's DissolvedOxygen and WaterDetect files on AWS and generates csv, emolt_do.dat, and csv files

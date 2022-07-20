@@ -1,15 +1,26 @@
 # Routine to grab Lowell Instrument DO data from AWS, plot, and process it.
+#
 # Original "read_s3_eMOLT.py" version by Carles & JiM processed the TD data
 # This version modified by JiM in late June 2022 processes DO data.
 # We should probably combine the two with some sort of class structure in the future.
 # We might also want to have plotting routine in a separate code or function.
-# Require module "emolt_functions.py" including the get_depth function which returns NGDC depths
+#
+# Requires:
+#  - module "emolt_functions.py" including the get_depth function which returns NGDC depths
+#  - yaml file "config_aws_cfa.yml" in this folder and added to .gitignore
+#
 # OUTPUT:
 #   - emolt_do.dat haul average temperatures in the same format as "emolt.dat"
 #   - raw merged csv file with header in the same format as other emolt csv files
 #   - two panel plot with temperature and DO 
+#
+# Modifications yet to be made as of 20 July 2022:
+#   - handle multiple probes per vessel
+#   - get depth from NGDC
+#   - consider saving Nick's raw csv files 
+#
 # See hardcodes below.
-# REMEMBER TO REMOVE AWS credential before uploading to github
+
 #
 import boto3
 import os
@@ -21,8 +32,15 @@ import matplotlib.dates as mdates
 import warnings
 warnings.filterwarnings('ignore')
 import emolt_functions
+import yaml
 
-## HARDCODES ###############################
+## read credentials from yaml file
+with open ("config_aws_cfa.yml","r") as yamlfile:
+  dbConfig=yaml.load(yamlfile, Loader=yaml.FullLoader)
+  access_key = dbConfig['default']['db_remote']['username']
+  access_pwd = dbConfig['default']['db_remote']['password']
+  
+### START OF HARDCODES ###############################
 min_haul_time=5 # number of minutes considered for hauling on deck
 min_equilibrate=15 # number of minutes to allow Lowell probe to equilibrate
 est_depth='no' # 'yes' to use NGDC depths
@@ -30,22 +48,16 @@ est_depth='no' # 'yes' to use NGDC depths
 #mac='60-77-71-22-c9-cd/'
 #vn='99' #KM
 vessel='Grace_Sarah'
-mac='58-93-d8-a4-b6-35/'
+mac='58-93-d8-a4-b6-ce/'#60-77-71-22-ca-3a,58-93-d8-a4-b6-65,58-93-d8-a4-b6-35
 vn='70' #GS
 sensor='li_' # li_ for Lowell Instruments
-
-# eMOLT credentials (WARNING: THESE NEED TO BE REMOVED BEFORE UPLOADING TO GITHUB)
-access_key = ''#' '
-access_pwd = ''#' 
-
 s3_bucket_name = 'bkt-cfa'  # bucket name
 path = 'aws_files/'  # path to store the data
 outfile='emolt_do.dat'
 ### END OF HARDCODES ############################################
 
 
-f_output=open(path+outfile,'w') # thiS is the haul averaged stats that we will add to other data
-    
+f_output=open(path+outfile,'w') # thiS is the haul averaged stats that we will add to other data  
             
 """Accessing the S3 buckets using boto3 client"""
 s3_client = boto3.client('s3')
@@ -61,7 +73,7 @@ for file in my_bucket.objects.filter(Prefix=mac):  # write the subdirectory name
     if (file_name.find(".csv") != -1) or (file_name.find(".gps") != -1): # JiM added gps
             bucket_list.append(file.key)
 
-# next make sure there are csv files for each gps file
+""" next make sure there are csv files for each gps file"""
 badind=[]
 for k in range(len(bucket_list)):
     if bucket_list[k][-4:]=='.gps':
@@ -73,7 +85,7 @@ for e in badind:
 
 length_bucket_list = (len(bucket_list))
 
-# Here's we we actually get the data from the bucket and generate dataframes
+""" Here's we we actually get the data from the bucket and generate dataframes"""
 ldf_do = []  # Initializing empty list of dataframes
 ldf_gps =[]
 ldf_wd=[]
@@ -86,39 +98,43 @@ for file in bucket_list:
             df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False)
             ldf_do.append(df)
         elif 'gps' in os.path.basename(file):
-            if file[-4:]+'_WaterDetect.csv' in bucket_list:
-                df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False) # need to read this differently
-                ldf_gps.append(df)
+            #if file[-4:]+'_WaterDetect.csv' in bucket_list:
+            df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False) # need to read this differently
+            ldf_gps.append(df)
         elif 'WaterDetect' in os.path.basename(file):
             df = pd.read_csv(io.BytesIO(data), header=0, delimiter=",", low_memory=False) # need to read this differently
             ldf_wd.append(df)
     except:
         print('Not working', file)
 
+'''
+# In the case where the csv files are not getting up to the AWS, we have the following:
+ldf_do= pd.read_csv('c:/users/james.manning/Downloads/emolt_realtime/data/Grace_Sarah/2205606_osu_20220708_160801_DissolvedOxygen.csv', header=0, delimiter=",", low_memory=False)
+ldf_wd= pd.read_csv('c:/users/james.manning/Downloads/emolt_realtime/data/Grace_Sarah/2205606_osu_20220708_160801_WaterDetect.csv', header=0, delimiter=",", low_memory=False)
+ldf_gps= pd.read_csv('c:/users/james.manning/Downloads/emolt_realtime/data/Grace_Sarah/2205606_osu_20220708_160801.gps', header=0, delimiter=",", low_memory=False)
+'''
 # we need to remove gps file from the bucket_list if there are no data files with same base
-# merging the dataframes
+"""merging the dataframes and process each data file/haul"""
 count=0
 filenames = [i for i in bucket_list  if 'gps' in i] # where bucket_list is 3 times as many elements as filenames
 for j in range(len(ldf_gps)): # for each set of files
     if max(ldf_wd[j]['Water Detect (%)'])>0: # only process those that were submerged
-        print(filenames[j]+' has data!!')
+        #print(filenames[j]+' has data!!')
         lat=ldf_gps[j].columns[0].split(' ')[1]# picks up the "column name" of an empty dataframe read by read_csv
         lon=ldf_gps[j].columns[0].split(' ')[2]
         ldf_do[j]['ISO 8601 Time']=pd.to_datetime(ldf_do[j]['ISO 8601 Time'])
         dfall=ldf_do[j]
         dfall['wd']=ldf_wd[j]['Water Detect (%)']
         dfall=dfall.set_index('ISO 8601 Time')
-        dfall['Depth (m)']=999#ldf_pressure[j]['Pressure (dbar)'].values-correct_dep
+        print('getting depth from NGDC')
+        depth=emolt_functions.get_depth(float(lon),float(lat),0.4)
+        dfall['Depth (m)']=depth#ldf_pressure[j]['Pressure (dbar)'].values-correct_dep
         dfall['lat']=lat[1:]# removes the "+"
         dfall['lon']=lon
         dfall=dfall[dfall['wd']>0] # here's where we eliminate all data that is not detecting water
-        #dfall=dfall[dfall['Depth (m)']>frac_dep*np.max(dfall['Depth (m)'])] # get bottom temps
-        ids=list(np.where(np.diff(dfall.index)>np.timedelta64(min_haul_time,'m'))[0])# index of new hauls
-        if len(ids)<=1:
-            ids=[0,1]# use this to plot the entire file
-        #else:
-        #    continue
-        for kk in range(len(ids)-1):     # loop through each haul and process individual haul       
+        #ids=list(np.where(np.diff(dfall.index)>np.timedelta64(min_haul_time,'m'))[0])# index of new hauls for case of mulitple hauls/file
+        ids=[0]# use this to plot the entire file
+        for kk in range(len(ids)):
           #df=dfall[ids[kk]+min_equilibrate:ids[kk+1]] # ignores "min_equilibrate" minutes at start
           df=dfall[0+min_equilibrate:-1] # for the case of one haul
           if not df.empty:
@@ -158,7 +174,7 @@ for j in range(len(ldf_gps)): # for each set of files
             ax2.set_ylabel('fahrenheit',color='r')
             #ax.xaxis.set_major_formatter(dates.DateFormatter('%M'))
             ##plt.title(vessel+' at '+str(lat[:-3])+'N, '+str(lon[:-3])+'W')# where we ignore the last 3 digits of lat/lon
-            plt.title(vessel)
+            plt.title('F/V '+vessel+' '+'temperature and dissolved oxygen ('+mac[:-1]+')')
             ax3 = fig.add_subplot(212)
             ax3.plot(df.index,df['Dissolved Oxygen (%)'],'g.')
             ax3.set_ylabel('%',color='g')
@@ -189,6 +205,6 @@ for j in range(len(ldf_gps)): # for each set of files
             f.writelines('Probe Type,{sensor}\nSerial Number,'.format(sensor=sensor) + mac[:-1] + '\nVessel Number,' + vn + '\nVP_NUM, Nan \nVessel Name,' + vessel + '\nDate Format,YYYY-MM-DD\nTime Format,HH24:MI:SS\nTemperature,C\nDepth,m\n')  # create header with logger number
             f.write(content)
             f.close()
-            emolt_functions.eMOLT_cloud([outputfile]) #uploads file                
+            #emolt_functions.eMOLT_cloud([outputfile]) #uploads file                
 f_output.close()
     
