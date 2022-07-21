@@ -645,7 +645,7 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
-    return("Record already exists")
+    return("Record already exists, no new record added")
     break()
   }
   ## Create the INSERT statement to load the data
@@ -699,4 +699,15 @@ function(data,serial,imei,transmit_time){
       ",NULL,'DEPTH','m','TELEMETRY')"
     )
   )
+  response=list(
+    "STATUS"= "The following records were inserted",
+    "RECORDS"=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM odn_data WHERE TOW_ID = ",
+        tow_id
+      )
+    )
+  )
+  return(response)
 }
