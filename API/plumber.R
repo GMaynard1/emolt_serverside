@@ -487,7 +487,7 @@ function(data,serial,imei,transmit_time){
   mean_time=transmit_time-minutes(round(soak_time/2,0))
   mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],12,15))/100
   std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],16,19))/100
-  ## Logger id doesn't go anywhere yet, but will need to be included in the tow summary file
+  ## Logger id is now stored if available (only new format)
   logger_id=dbGetQuery(
     conn=mydb,
     statement=paste0(
@@ -496,7 +496,7 @@ function(data,serial,imei,transmit_time){
       "'"
     )
   )$INVENTORY_ID
-  ## Look up the vessel id from the inventory_id
+  ## Look up the vessel id from the inventory_id of the satellite transmitter
   vessel_id=dbGetQuery(
     conn=mydb,
     statement=paste0(
@@ -509,7 +509,6 @@ function(data,serial,imei,transmit_time){
   )$VESSEL_ID
   
   ## Create the INSERT statement to load the data
-  ## Otherwise, add the logger information to the database
   if(Sys.info()[["nodename"]]=="emoltdev"){
     db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
   } else {
@@ -562,6 +561,142 @@ function(data,serial,imei,transmit_time){
       ",NULL,'DEPTH','m','TELEMETRY',",
       logger_id,
       ")"
+    )
+  )
+}
+
+#* Record status updates and haul average data transmissions via satellite (old style, mobile gear only)
+#* @param data A string of hex data from a ROCKBLOCK
+#* @param serial The serial number of the ROCKBLOCK
+#* @param imei The satellite transmitter's International Mobile Equipment Identity
+#* @param transmit_time time of transmission in UTC
+#* @post /getRock_API_old_mobile
+function(data,serial,imei,transmit_time){
+  ## Connect to database
+  mydb = dbConnector(db_config)
+  ## Decode the data
+  ## Convert the data from hex to character
+  datastring=rawToChar(
+    as.raw(
+      strtoi(
+        wkb::hex2raw(data),
+        16L
+      )
+    )
+  )
+  ## Check to see if the data is a status report or actual fishing
+  if(strsplit(
+    x=datastring,
+    split=","
+  )[[1]][3]=="0000000000"){
+    return("Status report, not fishing data, no record inserted")
+    break()
+  }
+  ## Extract latitude
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][1]
+  lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
+  ## Extract longitude
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][2]
+  lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
+  ## Extract mean depth
+  mean_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],1,3))
+  ## Extract range of depth
+  range_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],4,6))
+  ## Extract soak time in minutes
+  soak_time=as.numeric(substr(strsplit(datastring,",")[[1]][3],7,9))
+  ## Mean time is the temporal midpoint of the haul and is estimated as the transmission time - the soak time / 2
+  transmit_time=ymd_hms(as.character(transmit_time))
+  mean_time=transmit_time-minutes(round(soak_time/2,0))
+  ## Extract the mean temperature
+  mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],10,13))/100
+  std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],14,17))/100
+  ## Look up the vessel id from the inventory_id of the satellite transmitter
+  vessel_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM vessel_sat WHERE SERIAL_NUMBER = '",
+      serial,
+      "' AND HARDWARE_ADDRESS = '",
+      imei,
+      "'"
+    )
+  )$VESSEL_ID
+  ## Check to see if the record already exists
+  record=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_LATITUDE = ",
+      round(lat,5),
+      " AND MEAN_LONGITUDE = ",
+      round(lon,5),
+      " AND SOAK_TIME = ",
+      soak_time,
+      " AND MEAN_TIME = '",
+      mean_time,
+      "'"
+    )
+  )
+  if(nrow(record)!=0){
+    return("Record already exists")
+    break()
+  }
+  ## Create the INSERT statement to load the data
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  } else {
+    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  }
+  conn=dbConnector(db_config2)
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `TOWS`(`VESSEL_ID`,`MEAN_LATITUDE`,`MEAN_LONGITUDE`,`SOAK_TIME`,`MEAN_TIME`) VALUES (",
+      vessel_id,
+      ",",
+      lat,
+      ",",
+      lon,
+      ",",
+      soak_time,
+      ",'",
+      mean_time,
+      "')"
+    )
+  )
+  tow_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_TIME = '",
+      mean_time,
+      "'"
+    )
+  )$TOW_ID
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`) VALUES (",
+      tow_id,
+      ",",
+      mean_temp,
+      ",NULL,",
+      std_temp,
+      ",'TEMP','DEGREES CELSIUS','TELEMETRY'),(",
+      tow_id,
+      ",",
+      mean_depth,
+      ",",
+      range_depth,
+      ",NULL,'DEPTH','m','TELEMETRY')"
     )
   )
 }
