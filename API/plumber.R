@@ -69,20 +69,20 @@ function(loggerdat){
   ## If the logger already exists, return an error
   if(loggerExists){
     return("Logger already exists. Please use the 'UpdateLogger' function if you wish to edit an existing logger.")
-    dbDisconnect(conn=mydb)
+    dbDisconnectAll()
     break()
   }
   ## If the MAC address doesn't have the right number of characters, return an error
   if(nchar(loggerdat$MAC)%in%c(17,12)==FALSE){
     return("MAC address has an incorrect number of characters. Please try xx:xx:xx:xx:xx:xx")
-    dbDisconnect(conn=mydb)
+    dbDisconnectAll()
     break()
   }
   ## Attempt to standardize the MAC address
     MAC=standard_mac(loggerdat$MAC)
     if(MAC=="ERROR"){
       return("MAC address improperly formatted. Please try xx:xx:xx:xx:xx:xx")
-      dbDisconnect(conn=mydb)
+      dbDisconnectAll()
       break()
     }  
     ## Otherwise, add the logger information to the database
@@ -120,8 +120,7 @@ function(loggerdat){
     )
     if(loggerdat$Location=="UNK"){
       return("Logger location invalid, please select a number from the provided list")
-      dbDisconnect(conn=conn)
-      dbDisconnect(conn=mydb)
+      dbDisconnectAll()
       break()
     }
     ## Look up custodian
@@ -155,8 +154,7 @@ function(loggerdat){
           )
         )
       )
-      dbDisconnect(conn=conn)
-      dbDisconnect(conn=mydb)
+      dbDisconnectAll()
       break()
     }
     ## Check which optional variables are present to form the query
