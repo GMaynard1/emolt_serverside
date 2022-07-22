@@ -221,25 +221,24 @@ function(loggerdat){
         "')"
       )
     )
-    return(
-      list(
-        "Status"=paste0("New logger added at ", Sys.time()),
-        "Summary"=dbGetQuery(
-          conn=mydb,
-          statement=paste0(
-            "SELECT * FROM EQUIPMENT_INVENTORY INNER JOIN HARDWARE_ADDRESSES ON WHERE SERIAL_NUMBER = '",
-            loggerdat$SN,
-            "' AND MAKE = '",
-            loggerdat$Make,
-            "' AND MODEL = '",
-            loggerdat$Model,
-            "'"
-          )
-        ),
-        "MAC"=MAC
-      )
+    response=list(
+      "Status"=paste0("New logger added at ", Sys.time()),
+      "Summary"=dbGetQuery(
+        conn=mydb,
+        statement=paste0(
+          "SELECT * FROM EQUIPMENT_INVENTORY INNER JOIN HARDWARE_ADDRESSES ON WHERE SERIAL_NUMBER = '",
+          loggerdat$SN,
+          "' AND MAKE = '",
+          loggerdat$Make,
+          "' AND MODEL = '",
+          loggerdat$Model,
+          "'"
+        )
+      ),
+      "MAC"=MAC
     )
     dbDisconnectAll()
+    return(response)
 }
 
 #* Get logger MAC addresses associated with vessels
@@ -340,9 +339,9 @@ function(vessel){
   close(fileconn)
   ## Read in completed file
   y=read_file(filename)
+  dbDisconnectAll()
   ## Return the text as a file to the end user
   as_attachment(y,"control_file.txt")
-  dbDisconnectAll()
 }
 
 #* Create and export control file for Moana logger system during vessel setup
@@ -464,9 +463,9 @@ function(vessel){
   )
   ## Read in completed file
   y=read_file(filename)
+  dbDisconnectAll()
   ## Return the text as a file to the end user
   as_attachment(y,"setup_rtd.py")
-  dbDisconnectAll()
 }
 
 #* Record status updates and haul average data transmissions via satellite
@@ -614,8 +613,9 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
-  return(response)
   dbDisconnectAll()
+  return(response)
+
 }
 
 #* Record status updates and haul average data transmissions via satellite (old style, mobile gear only)
@@ -764,6 +764,6 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
-  return(response)
   dbDisconnectAll()
+  return(response)
 }
