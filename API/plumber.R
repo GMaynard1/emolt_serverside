@@ -490,6 +490,15 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
+  ## Check to see if the data is a status report or actual fishing
+  if(strsplit(
+    x=datastring,
+    split=","
+  )[[1]][3]%in%c("0000000000","1111111111")){
+    return("Status report, not fishing data, no record inserted")
+    dbDisconnectAll()
+    break()
+  }
   lat=as.numeric(strsplit(datastring,",")[[1]][1])
   lon=as.numeric(strsplit(datastring,",")[[1]][2])
   mean_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],1,3))
@@ -520,7 +529,28 @@ function(data,serial,imei,transmit_time){
       "'"
     )
   )$VESSEL_ID
-  
+  ## Check to see if the record already exists
+  record=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_LATITUDE = ",
+      round(lat,5),
+      " AND MEAN_LONGITUDE = ",
+      round(lon,5),
+      " AND SOAK_TIME = ",
+      soak_time,
+      " AND MEAN_TIME = '",
+      mean_time,
+      "'"
+    )
+  )
+  if(nrow(record)!=0){
+    return("Record already exists, no new record added")
+    dbDisconnectAll()
+    break()
+  }
   ## Create the INSERT statement to load the data
   if(Sys.info()[["nodename"]]=="emoltdev"){
     db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
@@ -576,6 +606,17 @@ function(data,serial,imei,transmit_time){
       ")"
     )
   )
+  response=list(
+    "STATUS"= "The following records were inserted",
+    "RECORDS"=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM odn_data WHERE TOW_ID = ",
+        tow_id
+      )
+    )
+  )
+  return(response)
   dbDisconnectAll()
 }
 
