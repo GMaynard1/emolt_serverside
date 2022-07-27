@@ -9,6 +9,10 @@ require(reticulate)
 require(RMySQL)
 require(wkb)
 
+## Ensure enough database connections are available for multiple vessels
+## reporting simultaneously
+MySQL(max.con=50)
+
 ## Vector of functions to read in
 functions=c(
   'commsdat.R',
@@ -471,7 +475,7 @@ function(vessel){
 #* Record status updates and haul average data transmissions via satellite
 #* @param data A string of hex data from a ROCKBLOCK
 #* @param serial The serial number of the ROCKBLOCK
-#* @param imei The satellite transmitter's  International Mobile Equipment Identity
+#* @param imei The satellite transmitter'sInternational Mobile Equipment Identity
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API
 function(data,serial,imei,transmit_time){
@@ -767,3 +771,5 @@ function(data,serial,imei,transmit_time){
   dbDisconnectAll()
   return(response)
 }
+
+
