@@ -772,4 +772,167 @@ function(data,serial,imei,transmit_time){
   return(response)
 }
 
+#* Record status updates and haul average data transmissions via satellite (old style, fixed gear only)
+#* @param data A string of hex data from a ROCKBLOCK
+#* @param serial The serial number of the ROCKBLOCK
+#* @param imei The satellite transmitter's International Mobile Equipment Identity
+#* @param transmit_time time of transmission in UTC
+#* @post /getRock_API_old_fixed
+function(data,serial,imei,transmit_time){
+  ## Connect to database
+  mydb = dbConnector(db_config)
+  ## Decode the data
+  ## Convert the data from hex to character
+  datastring=rawToChar(
+    as.raw(
+      strtoi(
+        wkb::hex2raw(data),
+        16L
+      )
+    )
+  )
+  ## Check to see if the data is a status report or actual fishing
+  if(strsplit(
+    x=datastring,
+    split=","
+  )[[1]][3]=="0000000000"){
+    return("Status report, not fishing data, no record inserted")
+    dbDisconnectAll()
+    break()
+  }
+  ## Extract latitude
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][1]
+  lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
+  ## Extract longitude
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][2]
+  lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
+  raw=strsplit(
+    x=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][3],
+    split="eee"
+  )
+  ## Extract mean depth
+  mean_depth=as.numeric(substr(raw[[1]][1],1,3))
+  ## Extract range of depth
+  range_depth=as.numeric(substr(raw[[1]][1],4,6))
+  ## Extract the standard deviation of temperature
+  std_temp=as.numeric(substr(raw[[1]][1],nchar(raw[[1]][1])-3,nchar(raw[[1]][1])))/100
+  ## Extract the mean temperature
+  mean_temp=as.numeric(substr(raw[[1]][1],nchar(raw[[1]][1])-7,nchar(raw[[1]][1])-4))/100
+  ## Extract soak time and convert to minutes
+  soak_time=as.numeric(substr(raw[[1]][1],7,nchar(raw[[1]][1])-8))*60
+  ## Extract the last 4 of the MAC address and use that to look up vessel id
+  mac4=paste0(
+    toupper(substr(raw[[1]][2],1,2)),
+    ":",
+    toupper(substr(raw[[1]][2],3,4))
+  )
+  vessel_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM vessel_mac WHERE EQUIPMENT_TYPE = 'LOGGER' AND HARDWARE_ADDRESS LIKE '%",
+      mac4,
+      "'"
+    )
+  )$VESSEL_ID
+  ## Mean time is the temporal midpoint of the haul and is estimated as the transmission time - the soak time / 2
+  mean_time=ymd_hms(transmit_time)-minutes(round(soak_time/2,0))
+  ## Check to see if the record already exists
+  record=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_LATITUDE = ",
+      round(lat,5),
+      " AND MEAN_LONGITUDE = ",
+      round(lon,5),
+      " AND SOAK_TIME = ",
+      soak_time,
+      " AND MEAN_TIME = '",
+      mean_time,
+      "'"
+    )
+  )
+  if(nrow(record)!=0){
+    return("Record already exists, no new record added")
+    dbDisconnectAll()
+    break()
+  }
+  ## If the record doesn't already exist, create an insert statement to load the data
+  ## Create the INSERT statement to load the data
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  } else {
+    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  }
+  conn=dbConnector(db_config2)
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `TOWS`(`VESSEL_ID`,`MEAN_LATITUDE`,`MEAN_LONGITUDE`,`SOAK_TIME`,`MEAN_TIME`) VALUES (",
+      vessel_id,
+      ",",
+      lat,
+      ",",
+      lon,
+      ",",
+      soak_time,
+      ",'",
+      mean_time,
+      "')"
+    )
+  )
+  tow_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_TIME = '",
+      mean_time,
+      "'"
+    )
+  )$TOW_ID
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`) VALUES (",
+      tow_id,
+      ",",
+      mean_temp,
+      ",NULL,",
+      std_temp,
+      ",'TEMP','DEGREES CELSIUS','TELEMETRY'),(",
+      tow_id,
+      ",",
+      mean_depth,
+      ",",
+      range_depth,
+      ",NULL,'DEPTH','m','TELEMETRY')"
+    )
+  )
+  ## Create a response
+  response=list(
+    "STATUS"= "The following records were inserted",
+    "RECORDS"=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM odn_data WHERE TOW_ID = ",
+        tow_id
+      )
+    )
+  )
+  ## Close all database connections and return the response
+  dbDisconnectAll()
+  return(response)
+}
+
 
