@@ -779,6 +779,13 @@ function(data,serial,imei,transmit_time){
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API_old_fixed
 function(data,serial,imei,transmit_time){
+  ## Print startup message to log
+  message(
+    paste0(
+      "Processing old format fixed gear transmission at ",
+      Sys.time()
+    )
+  )
   ## Connect to database
   mydb = dbConnector(db_config)
   ## Decode the data
@@ -791,11 +798,24 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
+  message(
+    paste0(
+      "data = '",
+      data,
+      "'"
+    )
+  )
   ## Check to see if the data is a status report or actual fishing
   if(strsplit(
     x=datastring,
     split=","
   )[[1]][3]=="0000000000"){
+    message("Status report, not fishing data, no record inserted in TOWS")
+    ## Use the IMEI and serial to look up the vessel
+    ## Parse the lat/lon
+    ## Collect the most recent status report
+    ## Calculate distance traveled
+    ## Insert a record into the vessel_status table
     return("Status report, not fishing data, no record inserted")
     dbDisconnectAll()
     break()
@@ -863,6 +883,7 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
+    message("Record already exists, no new record added")
     return("Record already exists, no new record added")
     dbDisconnectAll()
     break()
@@ -930,6 +951,7 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
+  message(response)
   ## Close all database connections and return the response
   dbDisconnectAll()
   return(response)
