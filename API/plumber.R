@@ -1,6 +1,7 @@
 # plumber.R
 ## Load necessary libraries
 require(config)
+require(geosphere)
 require(jsonlite)
 require(lubridate)
 require(plumber)
@@ -22,7 +23,8 @@ functions=c(
   'loggerdat.R',
   'standard_mac.R',
   'vessel_name.R',
-  'vesseldat.R'
+  'vesseldat.R',
+  'vesselSatLookup.R'
 )
 
 ## Read in functions and database configuration values
@@ -481,6 +483,17 @@ function(vessel){
 function(data,serial,imei,transmit_time){
   ## Connect to database
   mydb = dbConnector(db_config)
+  ## Identify the vessel using information from the satellite transmitter
+  vessel_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM vessel_sat WHERE HARDWARE_ADDRESS = '",
+      imei,
+      "' AND SERIAL_NUMBER = '",
+      serial,
+      "'"
+    )
+  )$VESSEL_ID
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -497,7 +510,68 @@ function(data,serial,imei,transmit_time){
     split=","
   )[[1]][3]%in%c("0000000000","1111111111")){
     return("Status report, not fishing data, no record inserted")
+    ## Extract latitude
+    lat=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][1]
+    lon=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][2]
+    ## Collect the most recent status report
+    mr=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+        vessel_id,
+        ")"
+      )
+    )
+    ## Calculate distance traveled
+    distance=ifelse(
+      nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
+      "NULL",
+      distHaversine(
+        c(lon,lat),
+        c(mr$LONGITUDE,mr$LATITUDE)
+      )/1000
+    )
+    ## Insert a record into the vessel_status table
+    dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+        vessel_id,
+        ",'SHORT_STATUS',",
+        lat,
+        ",",
+        lon,
+        ",'",
+        ymd_hms(transmit_time),
+        "',",
+        distance,
+        ")"
+      )
+    )
+    newrecord=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+        vessel_id,
+        " AND TIMESTAMP = '",
+        ymd_hms(transmit_time),
+        "'"
+      )
+    )
+    message(toJSON(newrecord))
     dbDisconnectAll()
+    return(
+      list(
+        "STATUS"="Status record added",
+        "RECORD"=newrecord
+      )
+    )
     break()
   }
   lat=as.numeric(strsplit(datastring,",")[[1]][1])
@@ -519,17 +593,6 @@ function(data,serial,imei,transmit_time){
       "'"
     )
   )$INVENTORY_ID
-  ## Look up the vessel id from the inventory_id of the satellite transmitter
-  vessel_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM vessel_sat WHERE SERIAL_NUMBER = '",
-      serial,
-      "' AND HARDWARE_ADDRESS = '",
-      imei,
-      "'"
-    )
-  )$VESSEL_ID
   ## Check to see if the record already exists
   record=dbGetQuery(
     conn=mydb,
@@ -607,6 +670,41 @@ function(data,serial,imei,transmit_time){
       ")"
     )
   )
+  ## Insert a record into the vessel_status table
+  ## Collect the most recent status report
+  mr=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      ")"
+    )
+  )
+  ## Calculate distance traveled
+  distance=ifelse(
+    nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
+    "NULL",
+    distHaversine(
+      c(lon,lat),
+      c(mr$LONGITUDE,mr$LATITUDE)
+    )/1000
+  )
+  dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+      vessel_id,
+      ",'SUMMARY_DATA',",
+      lat,
+      ",",
+      lon,
+      ",'",
+      ymd_hms(transmit_time),
+      "',",
+      distance,
+      ")"
+    )
+  )
   response=list(
     "STATUS"= "The following records were inserted",
     "RECORDS"=dbGetQuery(
@@ -631,6 +729,8 @@ function(data,serial,imei,transmit_time){
 function(data,serial,imei,transmit_time){
   ## Connect to database
   mydb = dbConnector(db_config)
+  ## Identify the vessel
+  vessel_id=vesselSatLookup(imei,serial)
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -647,7 +747,70 @@ function(data,serial,imei,transmit_time){
     split=","
   )[[1]][3]=="0000000000"){
     return("Status report, not fishing data, no record inserted")
+    ## Extract latitude
+    raw=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][1]
+    lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
+    raw=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][2]
+    lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
+    ## Collect the most recent status report
+    mr=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+        vessel_id,
+        ")"
+      )
+    )
+    ## Calculate distance traveled
+    distance=ifelse(
+      nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
+      "NULL",
+      distHaversine(
+        c(lon,lat),
+        c(mr$LONGITUDE,mr$LATITUDE)
+      )/1000
+    )
+    ## Insert a record into the vessel_status table
+    dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+        vessel_id,
+        ",'SHORT_STATUS',",
+        lat,
+        ",",
+        lon,
+        ",'",
+        ymd_hms(transmit_time),
+        "',",
+        distance,
+        ")"
+      )
+    )
+    newrecord=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+        vessel_id,
+        " AND TIMESTAMP = '",
+        ymd_hms(transmit_time),
+        "'"
+      )
+    )
+    message(toJSON(newrecord))
     dbDisconnectAll()
+    return(
+      list(
+        "STATUS"="Status record added",
+        "RECORD"=newrecord
+      )
+    )
     break()
   }
   ## Extract latitude
@@ -674,17 +837,6 @@ function(data,serial,imei,transmit_time){
   ## Extract the mean temperature
   mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],10,13))/100
   std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],14,17))/100
-  ## Look up the vessel id from the inventory_id of the satellite transmitter
-  vessel_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM vessel_sat WHERE SERIAL_NUMBER = '",
-      serial,
-      "' AND HARDWARE_ADDRESS = '",
-      imei,
-      "'"
-    )
-  )$VESSEL_ID
   ## Check to see if the record already exists
   record=dbGetQuery(
     conn=mydb,
@@ -703,6 +855,7 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
+    message("Record already exists")
     return("Record already exists, no new record added")
     dbDisconnectAll()
     break()
@@ -758,6 +911,41 @@ function(data,serial,imei,transmit_time){
       ",NULL,'DEPTH','m','TELEMETRY')"
     )
   )
+  ## Insert a record into the vessel_status table
+  ## Collect the most recent status report
+  mr=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      ")"
+    )
+  )
+  ## Calculate distance traveled
+  distance=ifelse(
+    nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
+    "NULL",
+    distHaversine(
+      c(lon,lat),
+      c(mr$LONGITUDE,mr$LATITUDE)
+    )/1000
+  )
+  dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+      vessel_id,
+      ",'SUMMARY_DATA',",
+      lat,
+      ",",
+      lon,
+      ",'",
+      ymd_hms(transmit_time),
+      "',",
+      distance,
+      ")"
+    )
+  )
   response=list(
     "STATUS"= "The following records were inserted",
     "RECORDS"=dbGetQuery(
@@ -768,6 +956,7 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
+  message(response)
   dbDisconnectAll()
   return(response)
 }
@@ -788,6 +977,8 @@ function(data,serial,imei,transmit_time){
   )
   ## Connect to database
   mydb = dbConnector(db_config)
+  ## Identify vessel using satellite transmitter information
+  vessel_id=vesselSatLookup(imei,serial)
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -811,13 +1002,70 @@ function(data,serial,imei,transmit_time){
     split=","
   )[[1]][3]=="0000000000"){
     message("Status report, not fishing data, no record inserted in TOWS")
-    ## Use the IMEI and serial to look up the vessel
-    ## Parse the lat/lon
+    ## Extract latitude
+    raw=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][1]
+    lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
+    raw=strsplit(
+      x=datastring,
+      split=","
+    )[[1]][2]
+    lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
     ## Collect the most recent status report
+    mr=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+        vessel_id,
+        ")"
+      )
+    )
     ## Calculate distance traveled
+    distance=ifelse(
+      nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
+      "NULL",
+      distHaversine(
+        c(lon,lat),
+        c(mr$LONGITUDE,mr$LATITUDE)
+      )/1000
+    )
     ## Insert a record into the vessel_status table
-    return("Status report, not fishing data, no record inserted")
+    dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+        vessel_id,
+        ",'SHORT_STATUS',",
+        lat,
+        ",",
+        lon,
+        ",'",
+        ymd_hms(transmit_time),
+        "',",
+        distance,
+        ")"
+      )
+    )
+    newrecord=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+        vessel_id,
+        " AND TIMESTAMP = '",
+        ymd_hms(transmit_time),
+        "'"
+      )
+    )
+    message(toJSON(newrecord))
     dbDisconnectAll()
+    return(
+      list(
+        "STATUS"="Status record added",
+        "RECORD"=newrecord
+        )
+    )
     break()
   }
   ## Extract latitude
@@ -855,14 +1103,6 @@ function(data,serial,imei,transmit_time){
     ":",
     toupper(substr(raw[[1]][2],3,4))
   )
-  vessel_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM vessel_mac WHERE EQUIPMENT_TYPE = 'LOGGER' AND HARDWARE_ADDRESS LIKE '%",
-      mac4,
-      "'"
-    )
-  )$VESSEL_ID
   ## Mean time is the temporal midpoint of the haul and is estimated as the transmission time - the soak time / 2
   mean_time=ymd_hms(transmit_time)-minutes(round(soak_time/2,0))
   ## Check to see if the record already exists
@@ -938,6 +1178,41 @@ function(data,serial,imei,transmit_time){
       ",",
       range_depth,
       ",NULL,'DEPTH','m','TELEMETRY')"
+    )
+  )
+  ## Insert a record into the vessel_status table
+  ## Collect the most recent status report
+  mr=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      ")"
+    )
+  )
+  ## Calculate distance traveled
+  distance=ifelse(
+    nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
+    "NULL",
+    distHaversine(
+      c(lon,lat),
+      c(mr$LONGITUDE,mr$LATITUDE)
+    )/1000
+  )
+  dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+      vessel_id,
+      ",'SUMMARY_DATA',",
+      lat,
+      ",",
+      lon,
+      ",'",
+      ymd_hms(transmit_time),
+      "',",
+      distance,
+      ")"
     )
   )
   ## Create a response
