@@ -60,8 +60,16 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
 #* @param loggerdat
 #* @post /loggerload
 function(loggerdat){
-  ## Connect to database
+  ## Create a read only database connection
   mydb = dbConnector(db_config)
+  
+  ## Create a read-write database connection
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  } else {
+    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  }
+  conn=dbConnector(db_config2)
   
   ## Read in the json object
   loggerdat=parse_json(loggerdat)
@@ -91,13 +99,6 @@ function(loggerdat){
       dbDisconnectAll()
       break()
     }  
-    ## Otherwise, add the logger information to the database
-    if(Sys.info()[["nodename"]]=="emoltdev"){
-      db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-    } else {
-      db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-    }
-    conn=dbConnector(db_config2)
     ## Reformat location
     loggerdat$Location=ifelse(
       loggerdat$Location==1,
@@ -151,6 +152,7 @@ function(loggerdat){
           "%'"
         )
       )
+      dbDisconnectAll()
       return(
         paste0(
           "No custodian found. Please try again. Similar entries include: ",
@@ -160,7 +162,6 @@ function(loggerdat){
           )
         )
       )
-      dbDisconnectAll()
       break()
     }
     ## Check which optional variables are present to form the query
@@ -251,7 +252,7 @@ function(loggerdat){
 #* @param vessel The vessel of interest
 #* @get /readMAC
 function(vessel="ALL"){
-  ## Connect to database
+  ## Create a read only connection to the database
   mydb=dbConnector(db_config)
   
   ## Standardize vessel name
@@ -269,7 +270,7 @@ function(vessel="ALL"){
 #* @serializer cat
 #* @get /getControl_File_Lowell
 function(vessel){
-  ## Connect to database
+  ## Create a read only connection to the database
   mydb=dbConnector(db_config)
   
   ## Standardize the vessel name
@@ -355,7 +356,7 @@ function(vessel){
 #* @serializer cat
 #* @get /getControl_File
 function(vessel){
-  ## Connect to database
+  ## Create a read-only connection to the database
   mydb=dbConnector(db_config)
   
   ## Standardize the vessel name to all uppercase, no underscore, remove the 
@@ -481,8 +482,29 @@ function(vessel){
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API
 function(data,serial,imei,transmit_time){
-  ## Connect to database
+  ## Print startup message to log
+  message(
+    paste0(
+      "Processing satellite transmission at ",
+      Sys.time()
+    )
+  )
+  
+  
+  ## Close all existing connections
+  dbDisconnectAll()
+  
+  ## Create a read only database connection
   mydb = dbConnector(db_config)
+  
+  ## Create a read-write database connection
+  if(Sys.info()[["nodename"]]=="emoltdev"){
+    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  } else {
+    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  }
+  conn=dbConnector(db_config2)
+  
   ## Identify the vessel using information from the satellite transmitter
   vessel_id=dbGetQuery(
     conn=mydb,
@@ -509,7 +531,6 @@ function(data,serial,imei,transmit_time){
     x=datastring,
     split=","
   )[[1]][3]%in%c("0000000000","1111111111")){
-    return("Status report, not fishing data, no record inserted")
     ## Extract latitude
     lat=strsplit(
       x=datastring,
@@ -539,7 +560,7 @@ function(data,serial,imei,transmit_time){
     )
     ## Insert a record into the vessel_status table
     dbGetQuery(
-      conn=mydb,
+      conn=conn,
       statement=paste0(
         "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
         vessel_id,
@@ -616,12 +637,6 @@ function(data,serial,imei,transmit_time){
     break()
   }
   ## Create the INSERT statement to load the data
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-  }
-  conn=dbConnector(db_config2)
   dbGetQuery(
     conn=conn,
     statement=paste0(
@@ -690,7 +705,7 @@ function(data,serial,imei,transmit_time){
     )/1000
   )
   dbGetQuery(
-    conn=mydb,
+    conn=conn,
     statement=paste0(
       "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
       vessel_id,
@@ -708,7 +723,7 @@ function(data,serial,imei,transmit_time){
   response=list(
     "STATUS"= "The following records were inserted",
     "RECORDS"=dbGetQuery(
-      conn=mydb,
+      conn=conn,
       statement=paste0(
         "SELECT * FROM odn_data WHERE TOW_ID = ",
         tow_id
