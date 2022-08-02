@@ -4,4 +4,4 @@ CREATE TABLE `SEGMENTATION_METHODS`(
   `METHOD_DETAILS` varchar(255) NOT NULL COMMENT 'A link to the GitHub page of the script',
   
   PRIMARY KEY (`SEGMENTATION_METHOD`)
-)COMMENT='This table stores descriptions of data processingg methods used to segment tows';
+)COMMENT='This table stores descriptions of data processing methods used to segment tows';
