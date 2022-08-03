@@ -1,5 +1,5 @@
 ## Use the IMEI and serial to look up the vessel
-vesselSatLookup=function(imei,serial){
+vesselSatLookup=function(imei,serial,mydb){
   dbGetQuery(
     conn=mydb,
     statement=paste0(
