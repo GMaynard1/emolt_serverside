@@ -746,7 +746,7 @@ function(data,serial,imei,transmit_time){
   ## Connect to database
   mydb = dbConnector(db_config)
   ## Identify the vessel
-  vessel_id=vesselSatLookup(imei,serial)
+  vessel_id=vesselSatLookup(imei,serial,mydb)
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -762,7 +762,6 @@ function(data,serial,imei,transmit_time){
     x=datastring,
     split=","
   )[[1]][3]=="0000000000"){
-    return("Status report, not fishing data, no record inserted")
     ## Extract latitude
     raw=strsplit(
       x=datastring,
@@ -964,11 +963,17 @@ function(data,serial,imei,transmit_time){
   )
   response=list(
     "STATUS"= "The following records were inserted",
-    "RECORDS"=dbGetQuery(
+    "TOW RECORD"=dbGetQuery(
       conn=mydb,
       statement=paste0(
         "SELECT * FROM odn_data WHERE TOW_ID = ",
         tow_id
+      )
+    ),
+    "VESSEL STATUS RECORD"=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE "
       )
     )
   )
@@ -994,7 +999,7 @@ function(data,serial,imei,transmit_time){
   ## Connect to database
   mydb = dbConnector(db_config)
   ## Identify vessel using satellite transmitter information
-  vessel_id=vesselSatLookup(imei,serial)
+  vessel_id=vesselSatLookup(imei,serial,mydb)
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
