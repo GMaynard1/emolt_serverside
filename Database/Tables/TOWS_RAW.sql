@@ -1,5 +1,6 @@
 CREATE TABLE `TOWS_RAW`(
   `TOWS_RAW_ID` integer NOT NULL AUTO_INCREMENT COMMENT 'UID for this table',
+  `TOW_ID` integer NOT NULL COMMENT 'Links to a record in the TOWS table',
   `TOW_SEGMENT_ID` integer NULL COMMENT 'Links to a record in the TOWS_SEGMENTS table',
   `TIMESTAMP` datetime NOT NULL COMMENT 'When the data point was collected',
   `LATITUDE` decimal(10,5) NOT NULL COMMENT 'Latitude at which the data point was collected',
@@ -15,4 +16,7 @@ CREATE TABLE `TOWS_RAW`(
   CONSTRAINT fk_segId2
     FOREIGN KEY (`TOW_SEGMENT_ID`)
     REFERENCES TOW_SEGMENTS(TOW_SEGMENT_ID)
+  CONSTRAINT fk_towID2
+    FOREIGN KEY (`TOW_ID`)
+    REFERENCES TOWS(TOW_ID)
 )COMMENT='This table stores raw data collected from loggers';
