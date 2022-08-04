@@ -1,11 +1,11 @@
 /*
-* Title: view_current_installs.sql
+* Title: zz_current_installs.sql
 * Author: George Maynard
 * Contact: george.maynard@noaa.gov
 * Purpose: View all equipment that is currently installed (was installed and does 
 *           not have a recorded removal)
 */
-CREATE OR REPLACE VIEW current_installs AS
+CREATE OR REPLACE VIEW zz_current_installs AS
 SELECT 
   zz_all_installs.INSTALL_DATE,
   zz_all_installs.END_INVENTORY_ID,
