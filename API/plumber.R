@@ -478,7 +478,7 @@ function(vessel){
 #* Record status updates and haul average data transmissions via satellite
 #* @param data A string of hex data from a ROCKBLOCK
 #* @param serial The serial number of the ROCKBLOCK
-#* @param imei The satellite transmitter'sInternational Mobile Equipment Identity
+#* @param imei The satellite transmitter's International Mobile Equipment Identity
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API
 function(data,serial,imei,transmit_time){
@@ -486,11 +486,11 @@ function(data,serial,imei,transmit_time){
   message(
     paste0(
       "Processing satellite transmission at ",
-      Sys.time()
+      Sys.time(),
+      "\nData = ",
+      data
     )
   )
-  
-  
   ## Close all existing connections
   dbDisconnectAll()
   
@@ -742,6 +742,15 @@ function(data,serial,imei,transmit_time){
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API_old_mobile
 function(data,serial,imei,transmit_time){
+  ## Print startup message to log
+  message(
+    paste0(
+      "Processing old format mobile gear transmission at ",
+      Sys.time(),
+      "\nData = ",
+      data
+    )
+  )
   ## Connect to database
   mydb = dbConnector(db_config)
   ## Identify the vessel
@@ -992,7 +1001,9 @@ function(data,serial,imei,transmit_time){
   message(
     paste0(
       "Processing old format fixed gear transmission at ",
-      Sys.time()
+      Sys.time(),
+      "\nData = ",
+      data
     )
   )
   ## Connect to database
