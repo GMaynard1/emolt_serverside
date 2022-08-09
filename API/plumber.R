@@ -538,7 +538,9 @@ function(data,serial,imei,transmit_time){
       statement=paste0(
         "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
         vessel_id,
-        ")"
+        " AND TIMESTAMP < '",
+        transmit_time,
+        "')"
       )
     )
     ## Calculate distance traveled
@@ -683,7 +685,9 @@ function(data,serial,imei,transmit_time){
     statement=paste0(
       "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
       vessel_id,
-      ")"
+      " AND TIMESTAMP < '",
+      transmit_time,
+      "')"
     )
   )
   ## Calculate distance traveled
@@ -780,7 +784,9 @@ function(data,serial,imei,transmit_time){
       statement=paste0(
         "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
         vessel_id,
-        ")"
+        " AND TIMESTAMP < '",
+        transmit_time,
+        "')"
       )
     )
     ## Calculate distance traveled
@@ -926,7 +932,9 @@ function(data,serial,imei,transmit_time){
     statement=paste0(
       "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
       vessel_id,
-      ")"
+      " AND TIMESTAMP < '",
+      transmit_time,
+      "')"
     )
   )
   ## Calculate distance traveled
@@ -1046,7 +1054,9 @@ function(data,serial,imei,transmit_time){
       statement=paste0(
         "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
         vessel_id,
-        ")"
+        " AND TIMESTAMP < '",
+        transmit_time,
+        "')"
       )
     )
     ## Calculate distance traveled
@@ -1207,7 +1217,9 @@ function(data,serial,imei,transmit_time){
     statement=paste0(
       "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
       vessel_id,
-      ")"
+      " AND TIMESTAMP < '",
+      transmit_time,
+      "')"
     )
   )
   ## Calculate distance traveled
