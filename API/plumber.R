@@ -632,9 +632,8 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
-    return("Record already exists, no new record added")
     dbDisconnectAll()
-    break()
+    return("Record already exists, no new record added")
   }
   ## Create the INSERT statement to load the data
   dbGetQuery(
@@ -751,6 +750,8 @@ function(data,serial,imei,transmit_time){
       data
     )
   )
+  ## Clear all existing connections
+  dbDisconnectAll()
   ## Connect to database
   mydb = dbConnector(db_config)
   ## Identify the vessel
@@ -834,7 +835,6 @@ function(data,serial,imei,transmit_time){
         "RECORD"=newrecord
       )
     )
-    break()
   }
   ## Extract latitude
   raw=strsplit(
@@ -878,10 +878,8 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
-    message("Record already exists")
-    return("Record already exists, no new record added")
     dbDisconnectAll()
-    break()
+    return("Record already exists, no new record added")
   }
   ## Create the INSERT statement to load the data
   if(Sys.info()[["nodename"]]=="emoltdev"){
@@ -1097,7 +1095,6 @@ function(data,serial,imei,transmit_time){
         "RECORD"=newrecord
         )
     )
-    break()
   }
   ## Extract latitude
   raw=strsplit(
@@ -1155,9 +1152,8 @@ function(data,serial,imei,transmit_time){
   )
   if(nrow(record)!=0){
     message("Record already exists, no new record added")
-    return("Record already exists, no new record added")
     dbDisconnectAll()
-    break()
+    return("Record already exists, no new record added")
   }
   ## If the record doesn't already exist, create an insert statement to load the data
   ## Create the INSERT statement to load the data
