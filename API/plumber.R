@@ -30,6 +30,7 @@ functions=c(
 ## Read in functions and database configuration values
 if(Sys.info()[["nodename"]]=="emoltdev"){
   db_config=config::get(file="/etc/plumber/config.yml")$dev_local
+  db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
   for(i in 1:length(functions)){
     source(
       paste0(
@@ -40,6 +41,7 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
   }
 } else {
   db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$dev_remote
+  db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
   for(i in 1:length(functions)){
     source(
       paste0(
@@ -64,11 +66,6 @@ function(loggerdat){
   mydb = dbConnector(db_config)
   
   ## Create a read-write database connection
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-  }
   conn=dbConnector(db_config2)
   
   ## Read in the json object
@@ -498,11 +495,6 @@ function(data,serial,imei,transmit_time){
   mydb = dbConnector(db_config)
   
   ## Create a read-write database connection
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-  }
   conn=dbConnector(db_config2)
   
   ## Identify the vessel using information from the satellite transmitter
@@ -882,11 +874,6 @@ function(data,serial,imei,transmit_time){
     return("Record already exists, no new record added")
   }
   ## Create the INSERT statement to load the data
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-  }
   conn=dbConnector(db_config2)
   dbGetQuery(
     conn=conn,
@@ -1168,11 +1155,6 @@ function(data,serial,imei,transmit_time){
   }
   ## If the record doesn't already exist, create an insert statement to load the data
   ## Create the INSERT statement to load the data
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-  }
   conn=dbConnector(db_config2)
   dbGetQuery(
     conn=conn,
