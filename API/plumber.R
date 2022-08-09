@@ -967,6 +967,16 @@ function(data,serial,imei,transmit_time){
       ")"
     )
   )
+  status_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND TIMESTAMP = '",
+      transmit_time,
+      "'"
+    )
+  )
   response=list(
     "STATUS"= "The following records were inserted",
     "TOW RECORD"=dbGetQuery(
@@ -979,7 +989,8 @@ function(data,serial,imei,transmit_time){
     "VESSEL STATUS RECORD"=dbGetQuery(
       conn=mydb,
       statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE "
+        "SELECT * FROM VESSEL_STATUS WHERE REPORT_ID = ",
+        status_id
       )
     )
   )
@@ -1242,14 +1253,31 @@ function(data,serial,imei,transmit_time){
       ")"
     )
   )
+  status_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND TIMESTAMP = '",
+      transmit_time,
+      "'"
+    )
+  )
   ## Create a response
   response=list(
     "STATUS"= "The following records were inserted",
-    "RECORDS"=dbGetQuery(
+    "TOW RECORD"=dbGetQuery(
       conn=mydb,
       statement=paste0(
         "SELECT * FROM odn_data WHERE TOW_ID = ",
         tow_id
+      )
+    ),
+    "VESSEL STATUS RECORD"=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE REPORT_ID = ",
+        status_id
       )
     )
   )
