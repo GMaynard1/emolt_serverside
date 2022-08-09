@@ -30,6 +30,7 @@ functions=c(
 ## Read in functions and database configuration values
 if(Sys.info()[["nodename"]]=="emoltdev"){
   db_config=config::get(file="/etc/plumber/config.yml")$test_local
+  db_config2=config::get(file="/etc/plumber/config.yml")$add_local_test
   for(i in 1:length(functions)){
     source(
       paste0(
@@ -40,6 +41,7 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
   }
 } else {
   db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$test_remote
+  db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_test
   for(i in 1:length(functions)){
     source(
       paste0(
@@ -50,12 +52,10 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
   }
 }
 
-
-
 #* @apiTitle eMOLT Test API
 #* @apiDescription This is the testing API for the eMOLT project. All code should be thoroughly vetted in the development API before being passed here. 
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov") 
-#* @apiVersion 1.0.0
+#* @apiVersion 1.0.1
 
 #* Import information about a new logger
 #* @param loggerdat
@@ -65,11 +65,6 @@ function(loggerdat){
   mydb = dbConnector(db_config)
   
   ## Create a read-write database connection
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_test
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_test
-  }
   conn=dbConnector(db_config2)
   
   ## Read in the json object
@@ -94,159 +89,159 @@ function(loggerdat){
     break()
   }
   ## Attempt to standardize the MAC address
-    MAC=standard_mac(loggerdat$MAC)
-    if(MAC=="ERROR"){
-      return("MAC address improperly formatted. Please try xx:xx:xx:xx:xx:xx")
-      dbDisconnectAll()
-      break()
-    }  
-    ## Reformat location
-    loggerdat$Location=ifelse(
-      loggerdat$Location==1,
-      "HOME",
+  MAC=standard_mac(loggerdat$MAC)
+  if(MAC=="ERROR"){
+    return("MAC address improperly formatted. Please try xx:xx:xx:xx:xx:xx")
+    dbDisconnectAll()
+    break()
+  }  
+  ## Reformat location
+  loggerdat$Location=ifelse(
+    loggerdat$Location==1,
+    "HOME",
+    ifelse(
+      loggerdat$Location==2,
+      "LAB",
       ifelse(
-        loggerdat$Location==2,
-        "LAB",
+        loggerdat$Location==3,
+        "VESSEL",
         ifelse(
-          loggerdat$Location==3,
-          "VESSEL",
+          loggerdat$Location==4,
+          "MANUFACTURER",
           ifelse(
-            loggerdat$Location==4,
-            "MANUFACTURER",
+            loggerdat$Location==5,
+            "LOST",
             ifelse(
-              loggerdat$Location==5,
-              "LOST",
-              ifelse(
-                loggerdat$Location==6,
-                "DECOMMISSIONED",
-                "UNK"
-              )
+              loggerdat$Location==6,
+              "DECOMMISSIONED",
+              "UNK"
             )
           )
         )
       )
     )
-    if(loggerdat$Location=="UNK"){
-      return("Logger location invalid, please select a number from the provided list")
-      dbDisconnectAll()
-      break()
-    }
-    ## Look up custodian
+  )
+  if(loggerdat$Location=="UNK"){
+    return("Logger location invalid, please select a number from the provided list")
+    dbDisconnectAll()
+    break()
+  }
+  ## Look up custodian
+  custodian=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM CONTACTS WHERE FIRST_NAME = '",
+      loggerdat$cFirst_name,
+      "' AND LAST_NAME = '",
+      loggerdat$cLast_name,
+      "'"
+    )
+  )$CONTACT_ID
+  if(length(custodian)!=1){
     custodian=dbGetQuery(
       conn=mydb,
       statement=paste0(
-        "SELECT * FROM CONTACTS WHERE FIRST_NAME = '",
+        "SELECT * FROM CONTACTS WHERE FIRST_NAME LIKE '%",
         loggerdat$cFirst_name,
-        "' AND LAST_NAME = '",
+        "%' OR LAST_NAME LIKE '%",
         loggerdat$cLast_name,
-        "'"
+        "%'"
       )
-    )$CONTACT_ID
-    if(length(custodian)!=1){
-      custodian=dbGetQuery(
-        conn=mydb,
-        statement=paste0(
-          "SELECT * FROM CONTACTS WHERE FIRST_NAME LIKE '%",
-          loggerdat$cFirst_name,
-          "%' OR LAST_NAME LIKE '%",
-          loggerdat$cLast_name,
-          "%'"
+    )
+    dbDisconnectAll()
+    return(
+      paste0(
+        "No custodian found. Please try again. Similar entries include: ",
+        paste(
+          custodian$FIRST_NAME,
+          custodian$LAST_NAME
         )
       )
-      dbDisconnectAll()
-      return(
-        paste0(
-          "No custodian found. Please try again. Similar entries include: ",
-          paste(
-            custodian$FIRST_NAME,
-            custodian$LAST_NAME
-          )
-        )
-      )
-      break()
-    }
-    ## Check which optional variables are present to form the query
-    opt=""
-    optvals=""
-    if(is.null(loggerdat$Software_version)==FALSE){
-      opt=paste0(opt,",`SOFTWARE_VERSION`")
-      optvals=paste0(optvals,",'",loggerdat$Software_version,"'")
-    }
-    if(is.null(loggerdat$Firmware_version)==FALSE){
-      opt=paste0(opt,",`FIRMWARE_VERSION`")
-      optvals=paste0(optvals,",'",loggerdat$Firmware_version,"'")
-    }
-    if(is.null(loggerdat$Purchase_date)==FALSE){
-      opt=paste0(opt,",`PURCHASE_DATE`")
-      optvals=paste0(optvals,",'",loggerdat$Purchase_date,"'")
-    }
-    if(is.null(loggerdat$Purchase_price)==FALSE){
-      opt=paste0(opt,",`PURCHASE_PRICE`")
-      optvals=paste0(optvals,",",loggerdat$Purchase_price)
-    }
-    ## Form the insert statement
+    )
+    break()
+  }
+  ## Check which optional variables are present to form the query
+  opt=""
+  optvals=""
+  if(is.null(loggerdat$Software_version)==FALSE){
+    opt=paste0(opt,",`SOFTWARE_VERSION`")
+    optvals=paste0(optvals,",'",loggerdat$Software_version,"'")
+  }
+  if(is.null(loggerdat$Firmware_version)==FALSE){
+    opt=paste0(opt,",`FIRMWARE_VERSION`")
+    optvals=paste0(optvals,",'",loggerdat$Firmware_version,"'")
+  }
+  if(is.null(loggerdat$Purchase_date)==FALSE){
+    opt=paste0(opt,",`PURCHASE_DATE`")
+    optvals=paste0(optvals,",'",loggerdat$Purchase_date,"'")
+  }
+  if(is.null(loggerdat$Purchase_price)==FALSE){
+    opt=paste0(opt,",`PURCHASE_PRICE`")
+    optvals=paste0(optvals,",",loggerdat$Purchase_price)
+  }
+  ## Form the insert statement
+  statement=paste0(
+    "INSERT INTO `EQUIPMENT_INVENTORY`(`INVENTORY_ID`,`SERIAL_NUMBER`,`EQUIPMENT_TYPE`,`MAKE`,`MODEL`,`CUSTODIAN`,`CURRENT_LOCATION`",
+    opt,
+    ") VALUES ( 0,'",
+    loggerdat$SN,
+    "','LOGGER','",
+    toupper(loggerdat$Make),
+    "','",
+    toupper(loggerdat$Model),
+    "',",
+    custodian,
+    ",'",
+    loggerdat$Location,
+    "'",
+    optvals,
+    ")"
+  )
+  ## Run the statement
+  dbGetQuery(
+    conn=conn,
+    statement=statement
+  )
+  ## Update the hardware address table
+  eid=dbGetQuery(
+    conn=conn,
     statement=paste0(
-      "INSERT INTO `EQUIPMENT_INVENTORY`(`INVENTORY_ID`,`SERIAL_NUMBER`,`EQUIPMENT_TYPE`,`MAKE`,`MODEL`,`CUSTODIAN`,`CURRENT_LOCATION`",
-      opt,
-      ") VALUES ( 0,'",
+      "SELECT * FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
       loggerdat$SN,
-      "','LOGGER','",
-      toupper(loggerdat$Make),
-      "','",
-      toupper(loggerdat$Model),
-      "',",
-      custodian,
-      ",'",
-      loggerdat$Location,
-      "'",
-      optvals,
-      ")"
+      "' AND MAKE = '",
+      loggerdat$Make,
+      "' AND MODEL = '",
+      loggerdat$Model,
+      "'")
+  )$INVENTORY_ID
+  dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "INSERT INTO `HARDWARE_ADDRESSES`(`HARDWARE_ID`,`INVENTORY_ID`,`ADDRESS_TYPE`,`HARDWARE_ADDRESS`) VALUES (0,",
+      eid,
+      ",'MAC','",
+      MAC,
+      "')"
     )
-    ## Run the statement
-    dbGetQuery(
-      conn=conn,
-      statement=statement
-    )
-    ## Update the hardware address table
-    eid=dbGetQuery(
-      conn=conn,
+  )
+  response=list(
+    "Status"=paste0("New logger added at ", Sys.time()),
+    "Summary"=dbGetQuery(
+      conn=mydb,
       statement=paste0(
-        "SELECT * FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
+        "SELECT * FROM EQUIPMENT_INVENTORY INNER JOIN HARDWARE_ADDRESSES ON WHERE SERIAL_NUMBER = '",
         loggerdat$SN,
         "' AND MAKE = '",
         loggerdat$Make,
         "' AND MODEL = '",
         loggerdat$Model,
-        "'")
-    )$INVENTORY_ID
-    dbGetQuery(
-      conn=conn,
-      statement=paste0(
-        "INSERT INTO `HARDWARE_ADDRESSES`(`HARDWARE_ID`,`INVENTORY_ID`,`ADDRESS_TYPE`,`HARDWARE_ADDRESS`) VALUES (0,",
-        eid,
-        ",'MAC','",
-        MAC,
-        "')"
+        "'"
       )
-    )
-    response=list(
-      "Status"=paste0("New logger added at ", Sys.time()),
-      "Summary"=dbGetQuery(
-        conn=mydb,
-        statement=paste0(
-          "SELECT * FROM EQUIPMENT_INVENTORY INNER JOIN HARDWARE_ADDRESSES ON WHERE SERIAL_NUMBER = '",
-          loggerdat$SN,
-          "' AND MAKE = '",
-          loggerdat$Make,
-          "' AND MODEL = '",
-          loggerdat$Model,
-          "'"
-        )
-      ),
-      "MAC"=MAC
-    )
-    dbDisconnectAll()
-    return(response)
+    ),
+    "MAC"=MAC
+  )
+  dbDisconnectAll()
+  return(response)
 }
 
 #* Get logger MAC addresses associated with vessels
@@ -433,7 +428,7 @@ function(vessel){
       "with open('",
       filename,
       "','a') as fp: json.dump(data,fp)"
-      )
+    )
   )
   ## Create the parameters dictionary
   keys=c(
@@ -479,7 +474,7 @@ function(vessel){
 #* Record status updates and haul average data transmissions via satellite
 #* @param data A string of hex data from a ROCKBLOCK
 #* @param serial The serial number of the ROCKBLOCK
-#* @param imei The satellite transmitter'sInternational Mobile Equipment Identity
+#* @param imei The satellite transmitter's International Mobile Equipment Identity
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API
 function(data,serial,imei,transmit_time){
@@ -487,11 +482,11 @@ function(data,serial,imei,transmit_time){
   message(
     paste0(
       "Processing satellite transmission at ",
-      Sys.time()
+      Sys.time(),
+      "\nData = ",
+      data
     )
   )
-  
-  
   ## Close all existing connections
   dbDisconnectAll()
   
@@ -499,11 +494,6 @@ function(data,serial,imei,transmit_time){
   mydb = dbConnector(db_config)
   
   ## Create a read-write database connection
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_test
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_test
-  }
   conn=dbConnector(db_config2)
   
   ## Identify the vessel using information from the satellite transmitter
@@ -633,9 +623,8 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
-    return("Record already exists, no new record added")
     dbDisconnectAll()
-    break()
+    return("Record already exists, no new record added")
   }
   ## Create the INSERT statement to load the data
   dbGetQuery(
@@ -733,7 +722,7 @@ function(data,serial,imei,transmit_time){
   )
   dbDisconnectAll()
   return(response)
-
+  
 }
 
 #* Record status updates and haul average data transmissions via satellite (old style, mobile gear only)
@@ -743,6 +732,17 @@ function(data,serial,imei,transmit_time){
 #* @param transmit_time time of transmission in UTC
 #* @post /getRock_API_old_mobile
 function(data,serial,imei,transmit_time){
+  ## Print startup message to log
+  message(
+    paste0(
+      "Processing old format mobile gear transmission at ",
+      Sys.time(),
+      "\nData = ",
+      data
+    )
+  )
+  ## Clear all existing connections
+  dbDisconnectAll()
   ## Connect to database
   mydb = dbConnector(db_config)
   ## Identify the vessel
@@ -826,7 +826,6 @@ function(data,serial,imei,transmit_time){
         "RECORD"=newrecord
       )
     )
-    break()
   }
   ## Extract latitude
   raw=strsplit(
@@ -870,17 +869,10 @@ function(data,serial,imei,transmit_time){
     )
   )
   if(nrow(record)!=0){
-    message("Record already exists")
-    return("Record already exists, no new record added")
     dbDisconnectAll()
-    break()
+    return("Record already exists, no new record added")
   }
   ## Create the INSERT statement to load the data
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_test
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_test
-  }
   conn=dbConnector(db_config2)
   dbGetQuery(
     conn=conn,
@@ -961,6 +953,16 @@ function(data,serial,imei,transmit_time){
       ")"
     )
   )
+  status_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND TIMESTAMP = '",
+      transmit_time,
+      "'"
+    )
+  )
   response=list(
     "STATUS"= "The following records were inserted",
     "TOW RECORD"=dbGetQuery(
@@ -973,7 +975,8 @@ function(data,serial,imei,transmit_time){
     "VESSEL STATUS RECORD"=dbGetQuery(
       conn=mydb,
       statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE "
+        "SELECT * FROM VESSEL_STATUS WHERE REPORT_ID = ",
+        status_id
       )
     )
   )
@@ -993,7 +996,9 @@ function(data,serial,imei,transmit_time){
   message(
     paste0(
       "Processing old format fixed gear transmission at ",
-      Sys.time()
+      Sys.time(),
+      "\nData = ",
+      data
     )
   )
   ## Connect to database
@@ -1085,9 +1090,8 @@ function(data,serial,imei,transmit_time){
       list(
         "STATUS"="Status record added",
         "RECORD"=newrecord
-        )
+      )
     )
-    break()
   }
   ## Extract latitude
   raw=strsplit(
@@ -1145,17 +1149,11 @@ function(data,serial,imei,transmit_time){
   )
   if(nrow(record)!=0){
     message("Record already exists, no new record added")
-    return("Record already exists, no new record added")
     dbDisconnectAll()
-    break()
+    return("Record already exists, no new record added")
   }
   ## If the record doesn't already exist, create an insert statement to load the data
   ## Create the INSERT statement to load the data
-  if(Sys.info()[["nodename"]]=="emoltdev"){
-    db_config2=config::get(file="/etc/plumber/config.yml")$add_local_test
-  } else {
-    db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_test
-  }
   conn=dbConnector(db_config2)
   dbGetQuery(
     conn=conn,
@@ -1236,14 +1234,31 @@ function(data,serial,imei,transmit_time){
       ")"
     )
   )
+  status_id=dbGetQuery(
+    conn=mydb,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND TIMESTAMP = '",
+      transmit_time,
+      "'"
+    )
+  )
   ## Create a response
   response=list(
     "STATUS"= "The following records were inserted",
-    "RECORDS"=dbGetQuery(
+    "TOW RECORD"=dbGetQuery(
       conn=mydb,
       statement=paste0(
         "SELECT * FROM odn_data WHERE TOW_ID = ",
         tow_id
+      )
+    ),
+    "VESSEL STATUS RECORD"=dbGetQuery(
+      conn=mydb,
+      statement=paste0(
+        "SELECT * FROM VESSEL_STATUS WHERE REPORT_ID = ",
+        status_id
       )
     )
   )
