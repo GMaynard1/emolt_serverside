@@ -1,6 +1,7 @@
 CREATE OR REPLACE VIEW odn_data_raw AS
 SELECT
   zz_odn_depth_raw.VESSEL_ID,
+  zz_odn_depth_raw.FMCODE AS GEAR_TYPE,
   zz_odn_depth_raw.TOW_ID,
   zz_odn_depth_raw.TIMESTAMP,
   zz_odn_depth_raw.LATITUDE,
