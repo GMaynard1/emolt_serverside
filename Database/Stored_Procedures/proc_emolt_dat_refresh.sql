@@ -5,7 +5,7 @@ DELIMETER $$
 USE `emolt_dev`$$
 CREATE PROCEDURE proc_emolt_dat_refresh()
 BEGIN
-  TABLE emolt_dat INTO OUTFILE '/var/lib/mysql-files/emolt.dat' FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
+  SELECT * FROM emolt_dat ORDER BY MEAN_TIME INTO OUTFILE '/var/lib/mysql-files/emolt_dat/emolt.tmp' FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
 END$$
 
 DELIMETER;
