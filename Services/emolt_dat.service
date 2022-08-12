@@ -1,0 +1,8 @@
+[Unit]
+After=mysql.target
+
+[Service]
+ExecStart=/etc/plumber/emolt_dat_refresh.sh
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Test version of Plumber API
+# After=postgresql
+# (or mariadb, mysql, etc if you use a DB with Plumber, otherwise leave this commented)
+
+[Service]
+ExecStart=/usr/bin/Rscript -e "library(plumber); pr('/etc/plumber/test_plumber.R') %>% pr_run(port=8081, host='0.0.0.0')"
+Restart=on-abnormal
+WorkingDirectory=/etc/plumber/
+
+[Install]
+WantedBy=multi-user.target
