@@ -8,7 +8,7 @@ distTrav=function(vessel_id,transmit_time,dbconn,lon,lat){
     statement=paste0(
       "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP = (SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
       vessel_id,
-      "AND TIMESTAMP < '",
+      " AND TIMESTAMP < '",
       transmit_time,
       "')"
     )
@@ -22,6 +22,7 @@ distTrav=function(vessel_id,transmit_time,dbconn,lon,lat){
       c(mr$LONGITUDE,mr$LATITUDE)
     )/1000
   )
+  distance=round(distance,2)
   ## Return the distance
   return(distance)
 }

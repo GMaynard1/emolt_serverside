@@ -1,0 +1,75 @@
+new_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
+  ## Extract latitude
+  lat = as.numeric(
+    strsplit(
+      x=datastring,
+      split=","
+    )[[1]][1]
+  )
+  
+  ## Extract longitude
+  lon = as.numeric(
+    strsplit(
+      x=datastring,
+      split=","
+    )[[1]][2]
+  )
+  
+  ## Calculate distance traveled
+  distance=distTrav(vessel_id,transmit_time,conn,lon,lat)
+  
+  ## Check to see if the record already exists
+  old_records=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND LATITUDE = ",
+      lat,
+      " AND LONGITUDE = ",
+      lon,
+      " AND TIMESTAMP = '",
+      ymd_hms(transmit_time),
+      "' AND DISTANCE_TRAVELED = ",
+      distance
+    )
+  )
+  
+  ## If the record already exists, print it
+  if(nrow(old_records)>0){
+    logMessage("Record exists; no action taken",format_delim(old_records,","))
+  return(
+    list(
+      "STATUS"="Record exists; no action taken"
+    )
+  )
+  ## Otherwise, insert a new record and print confirmation
+  } else {
+    values=paste0(
+      vessel_id,
+      ",'SHORT_STATUS',",
+      lat,
+      ",",
+      lon,
+      ",'",
+      transmit_time,
+      "',",
+      distance
+    )
+    logMessage("New record added",values)
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
+        values,
+        ")"
+      )
+    )
+    return(
+      list(
+        "STATUS"="Status record added",
+        "VALUES"=values
+      )
+    )
+  }
+}
