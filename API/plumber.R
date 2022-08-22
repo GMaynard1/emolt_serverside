@@ -16,20 +16,20 @@ MySQL(max.con=50)
 
 ## Vector of functions to read in
 functions=c(
-  'checkTransmissionType.R',
-  'commsdat.R',
+  'check_transmission_type.R',
+  'comms_dat.R',
   'create_py_dict.R',
-  'dbConnector.R',
-  'dbDisconnectAll.R',
-  'distTrav.R',
-  'loggerdat.R',
-  'logMessage.R',
-  'new_procShortStatus.R',
+  'db_connector.R',
+  'db_disconnect_all.R',
+  'dist_trav.R',
+  'log_message.R',
+  'logger_dat.R',
+  'new_proc_short_status.R',
   'new_proc_summary_data.R',
   'standard_mac.R',
+  'vessel_dat.R',
   'vessel_name.R',
-  'vesseldat.R',
-  'vesselSatLookup.R'
+  'vessel_sat_lookup.R'
 )
 
 ## Read in functions and database configuration values
