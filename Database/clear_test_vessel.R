@@ -1,4 +1,3 @@
-# plumber.R
 ## Load necessary libraries
 require(config)
 require(geosphere)
@@ -16,15 +15,22 @@ MySQL(max.con=50)
 
 ## Vector of functions to read in
 functions=c(
-  'commsdat.R',
+  'check_transmission_type.R',
+  'comms_dat.R',
   'create_py_dict.R',
-  'dbConnector.R',
-  'dbDisconnectAll.R',
-  'loggerdat.R',
+  'db_connector.R',
+  'db_disconnect_all.R',
+  'dist_trav.R',
+  'log_message.R',
+  'logger_dat.R',
+  'new_proc_short_status.R',
+  'new_proc_summary_data.R',
+  'old_mobile_proc_short_status.R',
+  'old_mobile_proc_summary_data.R',
   'standard_mac.R',
+  'vessel_dat.R',
   'vessel_name.R',
-  'vesseldat.R',
-  'vesselSatLookup.R'
+  'vessel_sat_lookup.R'
 )
 
 ## Read in functions and database configuration values

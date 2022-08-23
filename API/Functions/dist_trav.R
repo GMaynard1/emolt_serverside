@@ -1,10 +1,10 @@
 ## Select most recent status report from database and calculate distance traveled
 ## Collect the most recent status report
 library(geosphere)
-distTrav=function(vessel_id,transmit_time,dbconn,lon,lat){
+distTrav=function(vessel_id,transmit_time,conn,lon,lat){
   ## Locate the most recent record
   mr=dbGetQuery(
-    conn=dbconn,
+    conn=conn,
     statement=paste0(
       "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP = (SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
       vessel_id,

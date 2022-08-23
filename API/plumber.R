@@ -26,6 +26,10 @@ functions=c(
   'logger_dat.R',
   'new_proc_short_status.R',
   'new_proc_summary_data.R',
+  'old_fixed_proc_short_status.R',
+  'old_fixed_proc_summary_data.R',
+  'old_mobile_proc_short_status.R',
+  'old_mobile_proc_summary_data.R',
   'standard_mac.R',
   'vessel_dat.R',
   'vessel_name.R',
@@ -499,6 +503,11 @@ function(data,serial,imei,transmit_time){
   ## Convert transmission time to POSIX format
   transmit_time = ymd_hms(transmit_time)
   
+  transmit_time = floor_date(
+    transmit_time,
+    unit="minutes"
+  )
+  
   ## Identify the vessel using information from the satellite transmitter
   vessel_id = vesselSatLookup(imei,serial,mydb)
   
@@ -527,9 +536,6 @@ function(data,serial,imei,transmit_time){
     new_proc_summary_data(datastring,conn,vessel_id,transmit_time) 
     }
   }
-  
-  ## Disconnect from the databases
-  dbDisconnectAll()
 }
 
 #* Record status updates and haul average data transmissions via satellite (old style, mobile gear only)
@@ -540,20 +546,21 @@ function(data,serial,imei,transmit_time){
 #* @post /getRock_API_old_mobile
 function(data,serial,imei,transmit_time){
   ## Print startup message to log
-  message(
-    paste0(
-      "Processing old format mobile gear transmission at ",
-      Sys.time(),
-      "\nData = ",
-      data
-    )
-  )
+  logMessage("Processing old mobile satellite transmission",data)
+  
   ## Clear all existing connections
   dbDisconnectAll()
+  
   ## Connect to database
   mydb = dbConnector(db_config)
+  conn = dbConnector(db_config2)
+  
   ## Identify the vessel
   vessel_id=vesselSatLookup(imei,serial,mydb)
+  
+  ## Convert transmission time to POSIX format
+  transmit_time = floor_date(ymd_hms(transmit_time),unit="minutes")
+  
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -564,236 +571,19 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
+  
   ## Check to see if the data is a status report or actual fishing
-  if(strsplit(
-    x=datastring,
-    split=","
-  )[[1]][3]=="0000000000"){
-    ## Extract latitude
-    raw=strsplit(
-      x=datastring,
-      split=","
-    )[[1]][1]
-    lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
-    raw=strsplit(
-      x=datastring,
-      split=","
-    )[[1]][2]
-    lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
-    ## Collect the most recent status report
-    mr=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-        vessel_id,
-        " AND TIMESTAMP < '",
-        transmit_time,
-        "')"
-      )
-    )
-    ## Calculate distance traveled
-    distance=ifelse(
-      nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
-      "NULL",
-      distHaversine(
-        c(lon,lat),
-        c(mr$LONGITUDE,mr$LATITUDE)
-      )/1000
-    )
-    ## Insert a record into the vessel_status table
-    dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
-        vessel_id,
-        ",'SHORT_STATUS',",
-        lat,
-        ",",
-        lon,
-        ",'",
-        ymd_hms(transmit_time),
-        "',",
-        distance,
-        ")"
-      )
-    )
-    newrecord=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-        vessel_id,
-        " AND TIMESTAMP = '",
-        ymd_hms(transmit_time),
-        "'"
-      )
-    )
-    message(toJSON(newrecord))
-    dbDisconnectAll()
-    return(
-      list(
-        "STATUS"="Status record added",
-        "RECORD"=newrecord
-      )
-    )
+  datType=checkTransmissionType(data)
+  
+  logMessage("Transmission Type Identified",datType)
+  
+  if(datType=="SHORT_STATUS"){
+    oldMobile_procShortStatus(datastring,conn,vessel_id,transmit_time)
+  } else {
+    if(datType=="SUMMARY_DATA"){
+      old_mobile_proc_summary_data(datastring,conn,vessel_id,transmit_time)
+    }
   }
-  ## Extract latitude
-  raw=strsplit(
-    x=datastring,
-    split=","
-  )[[1]][1]
-  lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
-  ## Extract longitude
-  raw=strsplit(
-    x=datastring,
-    split=","
-  )[[1]][2]
-  lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
-  ## Extract mean depth
-  mean_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],1,3))
-  ## Extract range of depth
-  range_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],4,6))
-  ## Extract soak time in minutes
-  soak_time=as.numeric(substr(strsplit(datastring,",")[[1]][3],7,9))
-  ## Mean time is the temporal midpoint of the haul and is estimated as the transmission time - the soak time / 2
-  transmit_time=ymd_hms(as.character(transmit_time))
-  mean_time=transmit_time-minutes(round(soak_time/2,0))
-  ## Extract the mean temperature
-  mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],10,13))/100
-  std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],14,17))/100
-  ## Check to see if the record already exists
-  record=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND MEAN_LATITUDE = ",
-      round(lat,5),
-      " AND MEAN_LONGITUDE = ",
-      round(lon,5),
-      " AND SOAK_TIME = ",
-      soak_time,
-      " AND MEAN_TIME = '",
-      mean_time,
-      "'"
-    )
-  )
-  if(nrow(record)!=0){
-    dbDisconnectAll()
-    return("Record already exists, no new record added")
-  }
-  ## Create the INSERT statement to load the data
-  conn=dbConnector(db_config2)
-  dbGetQuery(
-    conn=conn,
-    statement=paste0(
-      "INSERT INTO `TOWS`(`VESSEL_ID`,`MEAN_LATITUDE`,`MEAN_LONGITUDE`,`SOAK_TIME`,`MEAN_TIME`) VALUES (",
-      vessel_id,
-      ",",
-      lat,
-      ",",
-      lon,
-      ",",
-      soak_time,
-      ",'",
-      mean_time,
-      "')"
-    )
-  )
-  tow_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND MEAN_TIME = '",
-      mean_time,
-      "'"
-    )
-  )$TOW_ID
-  dbGetQuery(
-    conn=conn,
-    statement=paste0(
-      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`) VALUES (",
-      tow_id,
-      ",",
-      mean_temp,
-      ",NULL,",
-      std_temp,
-      ",'TEMP','DEGREES CELSIUS','TELEMETRY'),(",
-      tow_id,
-      ",",
-      mean_depth,
-      ",",
-      range_depth,
-      ",NULL,'DEPTH','m','TELEMETRY')"
-    )
-  )
-  ## Insert a record into the vessel_status table
-  ## Collect the most recent status report
-  mr=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND TIMESTAMP < '",
-      transmit_time,
-      "')"
-    )
-  )
-  ## Calculate distance traveled
-  distance=ifelse(
-    nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
-    "NULL",
-    distHaversine(
-      c(lon,lat),
-      c(mr$LONGITUDE,mr$LATITUDE)
-    )/1000
-  )
-  dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
-      vessel_id,
-      ",'SUMMARY_DATA',",
-      lat,
-      ",",
-      lon,
-      ",'",
-      ymd_hms(transmit_time),
-      "',",
-      distance,
-      ")"
-    )
-  )
-  status_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND TIMESTAMP = '",
-      transmit_time,
-      "'"
-    )
-  )
-  response=list(
-    "STATUS"= "The following records were inserted",
-    "TOW RECORD"=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM odn_data WHERE TOW_ID = ",
-        tow_id
-      )
-    ),
-    "VESSEL STATUS RECORD"=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE REPORT_ID = ",
-        status_id
-      )
-    )
-  )
-  message(response)
-  dbDisconnectAll()
-  return(response)
 }
 
 #* Record status updates and haul average data transmissions via satellite (old style, fixed gear only)
@@ -804,18 +594,21 @@ function(data,serial,imei,transmit_time){
 #* @post /getRock_API_old_fixed
 function(data,serial,imei,transmit_time){
   ## Print startup message to log
-  message(
-    paste0(
-      "Processing old format fixed gear transmission at ",
-      Sys.time(),
-      "\nData = ",
-      data
-    )
-  )
+  logMessage("Processing old fixed satellite transmission",data)
+  
+  ## Clear all existing connections
+  dbDisconnectAll()
+  
   ## Connect to database
   mydb = dbConnector(db_config)
-  ## Identify vessel using satellite transmitter information
+  conn = dbConnector(db_config2)
+  
+  ## Identify the vessel
   vessel_id=vesselSatLookup(imei,serial,mydb)
+  
+  ## Convert transmission time to POSIX format
+  transmit_time = floor_date(ymd_hms(transmit_time),unit="minutes")
+  
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -826,261 +619,17 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
-  message(
-    paste0(
-      "data = '",
-      data,
-      "'"
-    )
-  )
+  
   ## Check to see if the data is a status report or actual fishing
-  if(strsplit(
-    x=datastring,
-    split=","
-  )[[1]][3]=="0000000000"){
-    message("Status report, not fishing data, no record inserted in TOWS")
-    ## Extract latitude
-    raw=strsplit(
-      x=datastring,
-      split=","
-    )[[1]][1]
-    lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
-    raw=strsplit(
-      x=datastring,
-      split=","
-    )[[1]][2]
-    lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
-    ## Collect the most recent status report
-    mr=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-        vessel_id,
-        " AND TIMESTAMP < '",
-        transmit_time,
-        "')"
-      )
-    )
-    ## Calculate distance traveled
-    distance=ifelse(
-      nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
-      "NULL",
-      distHaversine(
-        c(lon,lat),
-        c(mr$LONGITUDE,mr$LATITUDE)
-      )/1000
-    )
-    ## Insert a record into the vessel_status table
-    dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
-        vessel_id,
-        ",'SHORT_STATUS',",
-        lat,
-        ",",
-        lon,
-        ",'",
-        ymd_hms(transmit_time),
-        "',",
-        distance,
-        ")"
-      )
-    )
-    newrecord=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-        vessel_id,
-        " AND TIMESTAMP = '",
-        ymd_hms(transmit_time),
-        "'"
-      )
-    )
-    message(toJSON(newrecord))
-    dbDisconnectAll()
-    return(
-      list(
-        "STATUS"="Status record added",
-        "RECORD"=newrecord
-        )
-    )
+  datType=checkTransmissionType(data)
+  
+  logMessage("Transmission Type Identified",datType)
+  
+  if(datType=="SHORT_STATUS"){
+    old_fixed_proc_short_status(datastring,conn,vessel_id,transmit_time)
+  } else {
+    if(datType=="SUMMARY_STATUS"){
+      old_fixed_proc_summary_data(datastring,conn,vessel_id,transmit_time)
+    }
   }
-  ## Extract latitude
-  raw=strsplit(
-    x=datastring,
-    split=","
-  )[[1]][1]
-  lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
-  ## Extract longitude
-  raw=strsplit(
-    x=datastring,
-    split=","
-  )[[1]][2]
-  lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
-  raw=strsplit(
-    x=strsplit(
-      x=datastring,
-      split=","
-    )[[1]][3],
-    split="eee"
-  )
-  ## Extract mean depth
-  mean_depth=as.numeric(substr(raw[[1]][1],1,3))
-  ## Extract range of depth
-  range_depth=as.numeric(substr(raw[[1]][1],4,6))
-  ## Extract the standard deviation of temperature
-  std_temp=as.numeric(substr(raw[[1]][1],nchar(raw[[1]][1])-3,nchar(raw[[1]][1])))/100
-  ## Extract the mean temperature
-  mean_temp=as.numeric(substr(raw[[1]][1],nchar(raw[[1]][1])-7,nchar(raw[[1]][1])-4))/100
-  ## Extract soak time and convert to minutes
-  soak_time=as.numeric(substr(raw[[1]][1],7,nchar(raw[[1]][1])-8))*60
-  ## Extract the last 4 of the MAC address and use that to look up vessel id
-  mac4=paste0(
-    toupper(substr(raw[[1]][2],1,2)),
-    ":",
-    toupper(substr(raw[[1]][2],3,4))
-  )
-  ## Mean time is the temporal midpoint of the haul and is estimated as the transmission time - the soak time / 2
-  mean_time=ymd_hms(transmit_time)-minutes(round(soak_time/2,0))
-  ## Check to see if the record already exists
-  record=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND MEAN_LATITUDE = ",
-      round(lat,5),
-      " AND MEAN_LONGITUDE = ",
-      round(lon,5),
-      " AND SOAK_TIME = ",
-      soak_time,
-      " AND MEAN_TIME = '",
-      mean_time,
-      "'"
-    )
-  )
-  if(nrow(record)!=0){
-    message("Record already exists, no new record added")
-    dbDisconnectAll()
-    return("Record already exists, no new record added")
-  }
-  ## If the record doesn't already exist, create an insert statement to load the data
-  ## Create the INSERT statement to load the data
-  conn=dbConnector(db_config2)
-  dbGetQuery(
-    conn=conn,
-    statement=paste0(
-      "INSERT INTO `TOWS`(`VESSEL_ID`,`MEAN_LATITUDE`,`MEAN_LONGITUDE`,`SOAK_TIME`,`MEAN_TIME`) VALUES (",
-      vessel_id,
-      ",",
-      lat,
-      ",",
-      lon,
-      ",",
-      soak_time,
-      ",'",
-      mean_time,
-      "')"
-    )
-  )
-  tow_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM TOWS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND MEAN_TIME = '",
-      mean_time,
-      "'"
-    )
-  )$TOW_ID
-  dbGetQuery(
-    conn=conn,
-    statement=paste0(
-      "INSERT INTO `TOWS_SUMMARY`(`TOW_ID`,`TS_MEAN_VALUE`,`TS_RANGE_VALUE`,`TS_STD_VALUE`,`TS_PARAMETER`,`TS_UOM`,`TS_SOURCE`) VALUES (",
-      tow_id,
-      ",",
-      mean_temp,
-      ",NULL,",
-      std_temp,
-      ",'TEMP','DEGREES CELSIUS','TELEMETRY'),(",
-      tow_id,
-      ",",
-      mean_depth,
-      ",",
-      range_depth,
-      ",NULL,'DEPTH','m','TELEMETRY')"
-    )
-  )
-  ## Insert a record into the vessel_status table
-  ## Collect the most recent status report
-  mr=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM VESSEL_STATUS WHERE TIMESTAMP=(SELECT MAX(TIMESTAMP) FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND TIMESTAMP < '",
-      transmit_time,
-      "')"
-    )
-  )
-  ## Calculate distance traveled
-  distance=ifelse(
-    nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
-    "NULL",
-    distHaversine(
-      c(lon,lat),
-      c(mr$LONGITUDE,mr$LATITUDE)
-    )/1000
-  )
-  dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "INSERT INTO `VESSEL_STATUS`(`VESSEL_ID`,`REPORT_TYPE`,`LATITUDE`,`LONGITUDE`,`TIMESTAMP`,`DISTANCE_TRAVELED`) VALUES (",
-      vessel_id,
-      ",'SUMMARY_DATA',",
-      lat,
-      ",",
-      lon,
-      ",'",
-      ymd_hms(transmit_time),
-      "',",
-      distance,
-      ")"
-    )
-  )
-  status_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM VESSEL_STATUS WHERE VESSEL_ID = ",
-      vessel_id,
-      " AND TIMESTAMP = '",
-      transmit_time,
-      "'"
-    )
-  )
-  ## Create a response
-  response=list(
-    "STATUS"= "The following records were inserted",
-    "TOW RECORD"=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM odn_data WHERE TOW_ID = ",
-        tow_id
-      )
-    ),
-    "VESSEL STATUS RECORD"=dbGetQuery(
-      conn=mydb,
-      statement=paste0(
-        "SELECT * FROM VESSEL_STATUS WHERE REPORT_ID = ",
-        status_id
-      )
-    )
-  )
-  message(response)
-  ## Close all database connections and return the response
-  dbDisconnectAll()
-  return(response)
 }
-
-

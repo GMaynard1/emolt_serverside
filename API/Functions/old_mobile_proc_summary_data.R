@@ -1,14 +1,22 @@
-new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
+old_mobile_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
   
   ## Extract Latitude
-  lat=as.numeric(strsplit(datastring,",")[[1]][1])
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][1]
+  lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
   
   ## Extract Longitude
-  lon=as.numeric(strsplit(datastring,",")[[1]][2])
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][2]
+  lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
   
-  ## Round latitude and longitude 
-  lat=round(lat, 5)
-  lon=round(lon, 5)
+  ## Round latitude and longitude
+  lat=round(lat,5)
+  lon=round(lon,5)
   
   ## Extract mean depth (m)
   mean_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],1,3))
@@ -17,39 +25,28 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
   range_depth=as.numeric(substr(strsplit(datastring,",")[[1]][3],4,6))
   
   ## Extract soak time (minutes)
-  soak_time=as.numeric(substr(strsplit(datastring,",")[[1]][3],7,11))
+  soak_time=as.numeric(substr(strsplit(datastring,",")[[1]][3],7,9))
   
   ## Mean time is the temporal midpoint of the haul and is estimated as the 
   ## transmission time - the soak time / 2
   mean_time=transmit_time-minutes(round(soak_time/2,0))
   
   ## Extract mean temperature
-  mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],12,15))/100
+  mean_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],10,13))/100
   
   ## Extract the standard deviation of temperature
-  std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],16,19))/100
-  
-  ## Look up logger's INVENTORY_ID using the serial number
-  ## Logger id is now stored if available (only new format)
-  logger_id=dbGetQuery(
-    conn=mydb,
-    statement=paste0(
-      "SELECT * FROM EQUIPMENT_INVENTORY WHERE EQUIPMENT_TYPE = 'LOGGER' AND SERIAL_NUMBER = '",
-      substr(strsplit(datastring,"eee")[[1]][2],1,4),
-      "'"
-    )
-  )$INVENTORY_ID
+  std_temp=as.numeric(substr(strsplit(datastring,",")[[1]][3],14,17))/100
   
   ## Check to see if the record already exists
   old_records=dbGetQuery(
-    conn=mydb,
+    conn=conn,
     statement=paste0(
       "SELECT * FROM TOWS WHERE VESSEL_ID = ",
       vessel_id,
       " AND MEAN_LATITUDE = ",
-      round(lat,5),
+      lat,
       " AND MEAN_LONGITUDE = ",
-      round(lon,5),
+      lon,
       " AND SOAK_TIME = ",
       soak_time,
       " AND MEAN_TIME = '",
@@ -61,6 +58,11 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
   ## If the record already exists, print it
   if(nrow(old_records)>0){
     logMessage("Record exists; no action taken",format_delim(old_records,","))
+    
+    ## Disconnect from databases
+    dbDisconnectAll()
+    
+    ## Generate API output confirmation message
     return(
       list(
         "STATUS"="Record exists; no action taken"
@@ -95,7 +97,7 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
     )
     
     tow_id=dbGetQuery(
-      conn=mydb,
+      conn=conn,
       statement=paste0(
         "SELECT * FROM TOWS WHERE VESSEL_ID = ",
         vessel_id,
@@ -115,22 +117,18 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
         mean_temp,
         ",NULL,",
         std_temp,
-        ",'TEMP','DEGREES CELSIUS','TELEMETRY',",
-        logger_id,
-        "),(",
+        ",'TEMP','DEGREES CELSIUS','TELEMETRY',NULL),(",
         tow_id,
         ",",
         mean_depth,
         ",",
         range_depth,
-        ",NULL,'DEPTH','m','TELEMETRY',",
-        logger_id,
-        ")"
+        ",NULL,'DEPTH','m','TELEMETRY',NULL)"
       )
     )
     
     ## Calculate distance traveled
-    distance=distTrav(vessel_id,transmit_time,mydb,lon,lat)
+    distance=distTrav(vessel_id,transmit_time,conn,lon,lat)
     
     values2=paste0(
       vessel_id,

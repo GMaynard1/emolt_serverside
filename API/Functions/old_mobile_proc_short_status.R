@@ -1,20 +1,17 @@
-new_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
+oldMobile_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
   ## Extract latitude
-  lat = as.numeric(
-    strsplit(
-      x=datastring,
-      split=","
-    )[[1]][1]
-  )
-  
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][1]
+  lat=as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60
   
   ## Extract longitude
-  lon = as.numeric(
-    strsplit(
-      x=datastring,
-      split=","
-    )[[1]][2]
-  )
+  raw=strsplit(
+    x=datastring,
+    split=","
+  )[[1]][2]
+  lon=(as.numeric(substr(raw,1,2))+as.numeric(substr(raw,3,nchar(raw)))/60)*-1
   
   ## Round latitude and longitude
   lat=round(lat,5)
@@ -70,6 +67,7 @@ new_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
         ")"
       )
     )
+    
     ## Disconnect from databases
     dbDisconnectAll()
     
