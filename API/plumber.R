@@ -628,7 +628,7 @@ function(data,serial,imei,transmit_time){
   if(datType=="SHORT_STATUS"){
     old_fixed_proc_short_status(datastring,conn,vessel_id,transmit_time)
   } else {
-    if(datType=="SUMMARY_STATUS"){
+    if(datType=="SUMMARY_DATA"){
       old_fixed_proc_summary_data(datastring,conn,vessel_id,transmit_time)
     }
   }
