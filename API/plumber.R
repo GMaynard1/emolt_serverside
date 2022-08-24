@@ -1,67 +1,7 @@
 # plumber.R
-## Load necessary libraries
-require(config)
-require(geosphere)
-require(jsonlite)
-require(lubridate)
-require(plumber)
-require(readr)
-require(reticulate)
-require(RMySQL)
-require(wkb)
 
-## Ensure enough database connections are available for multiple vessels
-## reporting simultaneously
-MySQL(max.con=50)
-
-## Vector of functions to read in
-functions=c(
-  'check_transmission_type.R',
-  'comms_dat.R',
-  'create_py_dict.R',
-  'db_connector.R',
-  'db_disconnect_all.R',
-  'dist_trav.R',
-  'log_message.R',
-  'logger_dat.R',
-  'new_proc_short_status.R',
-  'new_proc_summary_data.R',
-  'old_fixed_proc_short_status.R',
-  'old_fixed_proc_summary_data.R',
-  'old_mobile_proc_short_status.R',
-  'old_mobile_proc_summary_data.R',
-  'standard_mac.R',
-  'vessel_dat.R',
-  'vessel_name.R',
-  'vessel_sat_lookup.R'
-)
-
-## Read in functions and database configuration values
-if(Sys.info()[["nodename"]]=="emoltdev"){
-  db_config=config::get(file="/etc/plumber/config.yml")$dev_local
-  db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
-  for(i in 1:length(functions)){
-    source(
-      paste0(
-        "/etc/plumber/Functions/",
-        functions[i]
-      )
-    )
-  }
-} else {
-  db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$dev_remote
-  db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
-  for(i in 1:length(functions)){
-    source(
-      paste0(
-        "C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Functions/",
-        functions[i]
-      )
-    )
-  }
-}
-
-
+## Load the header file
+source("API_header.R")
 
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
