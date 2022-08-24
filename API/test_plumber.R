@@ -1,61 +1,12 @@
 # plumber.R
-## Load necessary libraries
-require(config)
-require(geosphere)
-require(jsonlite)
-require(lubridate)
-require(plumber)
-require(readr)
-require(reticulate)
-require(RMySQL)
-require(wkb)
 
-## Ensure enough database connections are available for multiple vessels
-## reporting simultaneously
-MySQL(max.con=50)
-
-## Vector of functions to read in
-functions=c(
-  'commsdat.R',
-  'create_py_dict.R',
-  'dbConnector.R',
-  'dbDisconnectAll.R',
-  'loggerdat.R',
-  'standard_mac.R',
-  'vessel_name.R',
-  'vesseldat.R',
-  'vesselSatLookup.R'
-)
-
-## Read in functions and database configuration values
-if(Sys.info()[["nodename"]]=="emoltdev"){
-  db_config=config::get(file="/etc/plumber/config.yml")$test_local
-  db_config2=config::get(file="/etc/plumber/config.yml")$add_local_test
-  for(i in 1:length(functions)){
-    source(
-      paste0(
-        "/etc/plumber/Functions/",
-        functions[i]
-      )
-    )
-  }
-} else {
-  db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$test_remote
-  db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_test
-  for(i in 1:length(functions)){
-    source(
-      paste0(
-        "C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Functions/",
-        functions[i]
-      )
-    )
-  }
-}
+## Load the header file
+source("API_header.R")
 
 #* @apiTitle eMOLT Test API
 #* @apiDescription This is the testing API for the eMOLT project. All code should be thoroughly vetted in the development API before being passed here. 
-#* @apiContact list(name="API Support",email="george.maynard@noaa.gov") 
-#* @apiVersion 1.0.1
+#* @apiContact list(name="API Support",email="george.maynard@noaa.gov")
+#* @apiVersion 1.0.2
 
 #* Import information about a new logger
 #* @param loggerdat

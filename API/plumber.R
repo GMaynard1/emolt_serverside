@@ -6,6 +6,7 @@ source("API_header.R")
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov") 
+#* @apiVersion 1.1.0
 
 #* Import information about a new logger
 #* @param loggerdat
