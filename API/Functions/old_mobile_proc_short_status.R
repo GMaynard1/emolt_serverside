@@ -32,8 +32,7 @@ oldMobile_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
       lon,
       " AND TIMESTAMP = '",
       transmit_time,
-      "' AND DISTANCE_TRAVELED = ",
-      distance
+      "'"
     )
   )
   
