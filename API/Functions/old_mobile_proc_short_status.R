@@ -31,7 +31,7 @@ oldMobile_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
       " AND LONGITUDE = ",
       lon,
       " AND TIMESTAMP = '",
-      ymd_hms(transmit_time),
+      transmit_time,
       "' AND DISTANCE_TRAVELED = ",
       distance
     )
