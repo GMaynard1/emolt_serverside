@@ -68,7 +68,7 @@ old_fixed_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
     logMessage("Record exists; no action taken",format_delim(old_records,","))
     
     ## Disconnect from databases
-    dbDisconnectAll()
+    dbDisconnect(conn)
     
     ## Generate API output confirmation message
     return(
@@ -162,7 +162,7 @@ old_fixed_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
     )
     
     ## Disconnect from databases
-    dbDisconnectAll()
+    dbDisconnect(conn)
     
     ## Return status message
     return(

@@ -39,6 +39,7 @@ oldMobile_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
   ## If the record already exists, print it
   if(nrow(old_records)>0){
     logMessage("Record exists; no action taken",format_delim(old_records,","))
+    dbDisconnect(conn)
   return(
     list(
       "STATUS"="Record exists; no action taken"
@@ -67,8 +68,8 @@ oldMobile_procShortStatus=function(datastring,conn,vessel_id,transmit_time){
       )
     )
     
-    ## Disconnect from databases
-    dbDisconnectAll()
+    ## Disconnect from database
+    dbDisconnect(conn)
     
     ## Return status message
     return(

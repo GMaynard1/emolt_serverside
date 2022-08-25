@@ -59,8 +59,8 @@ old_mobile_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
   if(nrow(old_records)>0){
     logMessage("Record exists; no action taken",format_delim(old_records,","))
     
-    ## Disconnect from databases
-    dbDisconnectAll()
+    ## Disconnect from database
+    dbDisconnect(conn)
     
     ## Generate API output confirmation message
     return(
@@ -153,8 +153,8 @@ old_mobile_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
       )
     )
     
-    ## Disconnect from databases
-    dbDisconnectAll()
+    ## Disconnect from database
+    dbDisconnect(conn)
     
     ## Return status message
     return(

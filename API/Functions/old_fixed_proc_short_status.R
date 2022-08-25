@@ -40,6 +40,8 @@ old_fixed_proc_short_status=function(datastring,conn,vessel_id,transmit_time){
   ## If the record already exists, print it
   if(nrow(old_records)>0){
     logMessage("Record exists; no action taken",format_delim(old_records,","))
+    ## Disconnect from database
+    dbDisconnect(conn)
   return(
     list(
       "STATUS"="Record exists; no action taken"
@@ -69,7 +71,7 @@ old_fixed_proc_short_status=function(datastring,conn,vessel_id,transmit_time){
     )
     
     ## Disconnect from databases
-    dbDisconnectAll()
+    dbDisconnect(conn)
     
     ## Return status message
     return(
