@@ -17,12 +17,11 @@ distTrav=function(vessel_id,transmit_time,conn,lon,lat){
   distance=ifelse(
     nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
     "NULL",
-    distHaversine(
+    round(distHaversine(
       c(lon,lat),
       c(mr$LONGITUDE,mr$LATITUDE)
-    )/1000
+    )/1000,2)
   )
-  distance=round(distance,2)
   ## Return the distance
   return(distance)
 }
