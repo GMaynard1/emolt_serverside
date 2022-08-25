@@ -432,14 +432,8 @@ function(data,serial,imei,transmit_time){
   ## Print startup message to log
   logMessage("Processing satellite transmission",data)
   
-  ## Close all existing connections
-  dbDisconnectAll()
-  
-  ## Create a read only database connection
-  mydb = dbConnector(db_config)
-  
   ## Create a read-write database connection
-  conn = dbConnector(db_config2)
+  conn = dbConnector(db_config)
   
   ## Convert transmission time to POSIX format
   transmit_time = ymd_hms(transmit_time)
