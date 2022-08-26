@@ -13,6 +13,9 @@ distTrav=function(vessel_id,transmit_time,conn,lon,lat){
       "')"
     )
   )
+  ## Make sure that only the vessel of interest is included
+  mr=subset(mr,mr$VESSEL_ID==vessel_id)
+  
   ## Validate the record and calculate the Haversine distance (km) if possible
   distance=ifelse(
     nrow(mr)==0||is.null(mr$LATITUDE)||is.null(mr$LONGITUDE),
