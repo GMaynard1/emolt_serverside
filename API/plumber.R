@@ -483,15 +483,11 @@ function(data,serial,imei,transmit_time){
   ## Print startup message to log
   logMessage("Processing old mobile satellite transmission",data)
   
-  ## Clear all existing connections
-  dbDisconnectAll()
-  
   ## Connect to database
-  mydb = dbConnector(db_config)
-  conn = dbConnector(db_config2)
+  conn = dbConnector(db_config)
   
   ## Identify the vessel
-  vessel_id=vesselSatLookup(imei,serial,mydb)
+  vessel_id=vesselSatLookup(imei,serial,conn)
   
   ## Convert transmission time to POSIX format
   transmit_time = floor_date(ymd_hms(transmit_time),unit="minutes")
