@@ -32,7 +32,7 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
   ## Look up logger's INVENTORY_ID using the serial number
   ## Logger id is now stored if available (only new format)
   logger_id=dbGetQuery(
-    conn=mydb,
+    conn=conn,
     statement=paste0(
       "SELECT * FROM EQUIPMENT_INVENTORY WHERE EQUIPMENT_TYPE = 'LOGGER' AND SERIAL_NUMBER = '",
       substr(strsplit(datastring,"eee")[[1]][2],1,4),
@@ -42,7 +42,7 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
   
   ## Check to see if the record already exists
   old_records=dbGetQuery(
-    conn=mydb,
+    conn=conn,
     statement=paste0(
       "SELECT * FROM TOWS WHERE VESSEL_ID = ",
       vessel_id,
@@ -97,7 +97,7 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
     )
     
     tow_id=dbGetQuery(
-      conn=mydb,
+      conn=conn,
       statement=paste0(
         "SELECT * FROM TOWS WHERE VESSEL_ID = ",
         vessel_id,
@@ -132,7 +132,7 @@ new_proc_summary_data=function(datastring,conn,vessel_id,transmit_time){
     )
     
     ## Calculate distance traveled
-    distance=distTrav(vessel_id,transmit_time,mydb,lon,lat)
+    distance=distTrav(vessel_id,transmit_time,conn,lon,lat)
     
     values2=paste0(
       vessel_id,
