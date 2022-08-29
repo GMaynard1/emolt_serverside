@@ -444,7 +444,7 @@ function(data,serial,imei,transmit_time){
   )
   
   ## Identify the vessel using information from the satellite transmitter
-  vessel_id = vesselSatLookup(imei,serial,mydb)
+  vessel_id = vesselSatLookup(imei,serial,conn)
   
   ## Decode the data
   ## Convert the data from hex to character
