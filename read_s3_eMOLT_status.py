@@ -10,7 +10,7 @@ import os
 import pandas as pd
 import numpy as np
 import io
-from emolt_functions import get_mac
+from emolt_functions import get_mac,eMOLT_cloud
 from datetime import datetime as dt
 from datetime import timedelta as td
 import yaml
@@ -97,7 +97,8 @@ for file in bucket_list:
 
 # Note: ldf_pressure, ldf_temperature,ldf_gps are lists of dataframes
 # merging the dataframes
-count=0
+count=0      # total since the start
+count_new=0  # total new hauls in the last "how_many_days_before_today_to_check"
 filenames = [i for i in bucket_list  if 'gps' in i] # where bucket_list is 3 times as many elements as filenames
 for j in range(len(ldf_gps)): # only process those with a GPS
     if max(ldf_pressure[j]['Pressure (dbar)'])>min_depth: # only process those that were submergedmore than "min_depth" meters
@@ -123,8 +124,9 @@ for j in range(len(ldf_gps)): # only process those with a GPS
                 
             else:
                 print(v+' has '+str(len(ids)+1)+' hauls with no GPS on '+str(dfall.index[0])[0:10])
-            
-print('\nTotal hauls ='+str(count))
+            count_new=count_new+1
+print('\nTotal hauls ='+str(count)+' with '+str(count_new)+' in the last '+str(how_many_days_before_today_to_check)+' days.')
 f_html.write('</tbody></table>')
 f_html.write('Total # hauls ='+str(count))
 f_html.close()
+eMOLT_cloud(['emolt_aws_status.html'])
