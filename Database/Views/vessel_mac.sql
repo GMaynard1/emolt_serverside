@@ -11,6 +11,7 @@ SELECT
   zz_vessel_visits.VISIT_DATE,
   zz_vessel_visits.VESSEL_ID,
   zz_vessel_visits.PRIMARY_GEAR,
+  zz_vessel_visits.HOMEPORT,
   zz_installed_gear_and_addresses.EQUIPMENT_TYPE,
   zz_installed_gear_and_addresses.MAKE,
   zz_installed_gear_and_addresses.MODEL,
