@@ -636,6 +636,8 @@ function(auth1,start_date,end_date,resolution){
   ## - ALL = all available data
   ## - HOUR = hourly averages
   ## - DAY = daily averages
+  resolution=toupper(resolution)
+  
   if(resolution == "ALL"){
     x=select(data,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
     return(x)
