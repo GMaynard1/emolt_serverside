@@ -564,3 +564,116 @@ function(data,serial,imei,transmit_time){
     }
   }
 }
+
+#* Load data from the Lowell S3 bucket
+#* @param date A datetime value describing when the load was initiated
+#* @param filename The name of the file to be loaded
+#* @param contents The contents of the file
+#* @param newfilename The modified version of the filename that replaces "/" with "_"
+#* @param last_modified The last time the file was modified in the AWS S3 Bucket
+#* @post /dev_S3_load
+function(date,filename,newfilename,contents,last_modified){
+  
+  ## Print a startup message to the log
+  logMessage("Processing S3 file ", filename)
+  
+  ## Connect to database
+  conn=dbConnector(db_config2)
+  
+  ## Identify the filetype
+  filetype=s3_filetype(newfilename)
+  
+  logMessage("Filetype is: ", filetype)
+  ## If the filetype is unknown, return an error. Otherwise, process the file 
+  if(filetype=="UNKNOWN"){
+    dbDisconnect(conn)
+    return(
+      list(
+        "STATUS" = "UNKNOWN FILETYPE",
+        "VALUES" = "ERROR"
+        )
+    )
+  } else {
+    file_save(filename,newfilename,contents,conn,date,last_modified)
+  }
+}
+
+#* Make high resolution data for a particular user available to the ODN portal
+#* @param auth1 Some sort of authentication. This is currently just a demo so this parameter is ignored
+#* @param start_date beginning date of requested data
+#* @param end_date end date of requested data
+#* @param resolution resolution of requested data (ALL, HOUR, or DAY)
+#* @get /get_odn_data
+function(auth1,start_date,end_date,resolution){
+  ## Connect to the database
+  conn=dbConnector(db_config)
+  
+  ## Use the authorization token to lookup a vessel. This is demo code only.
+  if(is.na(auth1)==FALSE){
+    vessel_id=26
+  }
+  
+  ## Grab the data from the database
+  data=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM odn_data_raw WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND TIMESTAMP BETWEEN '",
+      start_date,
+      "' AND '",
+      end_date,
+      "'"
+    )
+  )
+  
+  ## Convert timestamps to POSIX values
+  data$date=ymd_hms(data$TIMESTAMP)
+  start_date=ymd(start_date)
+  end_date=ymd(end_date)
+  
+  ## resolution should be one of the following:
+  ## - ALL = all available data
+  ## - HOUR = hourly averages
+  ## - DAY = daily averages
+  if(resolution == "ALL"){
+    x=select(data,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
+    return(x)
+  } else {
+    if(resolution == "HOUR"){
+      x=timeAverage(
+        mydata=data,
+        avg.time="hour",
+        start.date=start_date,
+        end.date=end_date,
+        statistic="mean")
+      x=subset(
+        x,
+        is.na(x$TEMP)==FALSE
+      )
+      x$FMCODE=data$FMCODE[1]
+      x$TIMESTAMP=x$date
+      x$date=NULL
+      x=select(x,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
+      return(x)
+    } else {
+      if(resolution=="DAY"){
+        x=timeAverage(
+          mydata=data,
+          avg.time="day",
+          start.date=start_date,
+          end.date=end_date,
+          statistic="mean")
+        x=subset(
+          x,
+          is.na(x$TEMP)==FALSE
+        )
+        x$FMCODE=data$FMCODE[1]
+        x$TIMESTAMP=x$date
+        x$date=NULL
+        x=select(x,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
+        return(x)
+      }
+    }
+  }
+}

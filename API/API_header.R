@@ -26,18 +26,24 @@
 ##
 ##  - 2022-08-24: Previously, this information was contained on lines 
 ##      2-62 (approximately) of the API code
+##  - 2022-09-28: Added new functions to pull raw data from the database for use
+##      in the ODN portal. Still need to implement authentication before serving
+##      data from other vessels (beyond F/V Lisa Ann III)
 ##
 ## ---------------------------
 
 ## Load necessary libraries
+require(aws.s3)
 require(config)
 require(geosphere)
 require(jsonlite)
 require(lubridate)
+require(openair)
 require(plumber)
 require(readr)
 require(reticulate)
 require(RMySQL)
+require(stringr)
 require(wkb)
 
 ## Ensure enough database connections are available for multiple vessels
@@ -52,6 +58,7 @@ functions=c(
   'db_connector.R',
   'db_disconnect_all.R',
   'dist_trav.R',
+  #'file_save.R',
   'log_message.R',
   'logger_dat.R',
   'new_proc_short_status.R',
@@ -60,6 +67,7 @@ functions=c(
   'old_fixed_proc_summary_data.R',
   'old_mobile_proc_short_status.R',
   'old_mobile_proc_summary_data.R',
+  #'s3_filetype.R',
   'standard_mac.R',
   'vessel_dat.R',
   'vessel_name.R',
@@ -70,6 +78,7 @@ functions=c(
 if(Sys.info()[["nodename"]]=="emoltdev"){
   db_config=config::get(file="/etc/plumber/config.yml")$dev_local
   db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  aws_config=config::get(file="/etc/plumber/config.yml")$aws_bucket
   for(i in 1:length(functions)){
     source(
       paste0(
@@ -81,6 +90,7 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
 } else {
   db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$dev_remote
   db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  aws_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$aws_bucket
   for(i in 1:length(functions)){
     source(
       paste0(
