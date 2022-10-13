@@ -4,3 +4,4 @@ config_aws_cfa.yml
 .Rproj.user
 .Rhistory
 emolt_serverside.Rproj
+cred_gen*
