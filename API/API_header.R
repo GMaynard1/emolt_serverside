@@ -29,6 +29,7 @@
 ##  - 2022-09-28: Added new functions to pull raw data from the database for use
 ##      in the ODN portal. Still need to implement authentication before serving
 ##      data from other vessels (beyond F/V Lisa Ann III)
+##  - 2022-10-14: Added API Key requirement for access from the ODN Portal
 ##
 ## ---------------------------
 
@@ -36,6 +37,7 @@
 require(aws.s3)
 require(config)
 require(geosphere)
+require(jose)
 require(jsonlite)
 require(lubridate)
 require(openair)
@@ -76,9 +78,12 @@ functions=c(
 
 ## Read in functions and database configuration values
 if(Sys.info()[["nodename"]]=="emoltdev"){
+  ## Configuration values
   db_config=config::get(file="/etc/plumber/config.yml")$dev_local
   db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
   aws_config=config::get(file="/etc/plumber/config.yml")$aws_bucket
+  odn_key=read_jwk("/etc/plumber/Keys/odn_key.json")
+  ## Functions
   for(i in 1:length(functions)){
     source(
       paste0(
@@ -91,6 +96,7 @@ if(Sys.info()[["nodename"]]=="emoltdev"){
   db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$dev_remote
   db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
   aws_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$aws_bucket
+  odn_key=read_jwk("C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Keys/odn_key.json")
   for(i in 1:length(functions)){
     source(
       paste0(
