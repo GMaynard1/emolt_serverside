@@ -5,3 +5,4 @@ config_aws_cfa.yml
 .Rhistory
 emolt_serverside.Rproj
 cred_gen*
+API/Keys/*
