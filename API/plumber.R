@@ -683,6 +683,7 @@ function(vessel_id,start_date,end_date,resolution){
         x$TIMESTAMP=x$date
         x$date=NULL
         x=select(x,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
+        dbDisconnect(conn)
         return(x)
       }
     }
