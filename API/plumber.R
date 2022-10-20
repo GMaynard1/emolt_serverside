@@ -612,18 +612,53 @@ function(data,serial,imei,transmit_time){
 #   }
 # }
 
+#* Grab the minimum and maximum dates of data available for a particular vessel
+#* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
+#* @get /get_odn_dates
+function(vessel_id){
+  ## Connect to the database
+  conn=dbConnector(db_config)
+  
+  ## Grab the minimum date
+  minDate=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT X.MIN_DATE FROM (SELECT VESSEL_ID,MIN(TIMESTAMP) AS MIN_DATE FROM odn_data_raw GROUP BY VESSEL_ID) X WHERE X.VESSEL_ID = ",
+      vessel_id
+    )
+  )$MIN_DATE
+  
+  ## Grab the maximum date
+  maxDate=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT X.MAX_DATE FROM (SELECT VESSEL_ID,MAX(TIMESTAMP) AS MAX_DATE FROM odn_data_raw GROUP BY VESSEL_ID) X WHERE X.VESSEL_ID = ",
+      vessel_id
+    )
+  )$MAX_DATE
+  
+  ## Disconnect from the database
+  dbDisconnect(conn)
+  
+  ## Return minDate and maxDate
+  return(
+    list(
+      "min_date"=minDate,
+      "max_date"=maxDate
+    )
+  )
+}
 #* Make high resolution data for a particular user available to the ODN portal
 #* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
 #* @param start_date beginning date of requested data
 #* @param end_date end date of requested data
-#* @param resolution resolution of requested data (ALL, HOUR, or DAY)
 #* @get /get_odn_data
-function(vessel_id,start_date,end_date,resolution){
+function(vessel_id,start_date,end_date){
   ## Connect to the database
   conn=dbConnector(db_config)
   
-  ## Grab the data from the database
-  data=dbGetQuery(
+  ## Grab the raw data from the database
+  raw_data=dbGetQuery(
     conn=conn,
     statement=paste0(
       "SELECT * FROM odn_data_raw WHERE VESSEL_ID = ",
@@ -636,56 +671,30 @@ function(vessel_id,start_date,end_date,resolution){
     )
   )
   
-  ## Convert timestamps to POSIX values
-  data$date=ymd_hms(data$TIMESTAMP)
-  start_date=ymd(start_date)
-  end_date=ymd(end_date)
+  ## Grab the haul average data from the database
+  haul_avg_data=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM odn_data WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND MEAN_TIME BETWEEN '",
+      start_date,
+      "' AND '",
+      end_date,
+      "'"
+    )
+  )
   
-  ## resolution should be one of the following:
-  ## - ALL = all available data
-  ## - HOUR = hourly averages
-  ## - DAY = daily averages
-  resolution=toupper(resolution)
+  ## Apply the QAQC routine to the raw data (haul average data should 
+  ## already be QAQC'd)
+  #THIS IS JUST A PLACEHOLDER FOR NOW
   
-  if(resolution == "ALL"){
-    x=select(data,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
-    return(x)
-  } else {
-    if(resolution == "HOUR"){
-      x=timeAverage(
-        mydata=data,
-        avg.time="hour",
-        start.date=start_date,
-        end.date=end_date,
-        statistic="mean")
-      x=subset(
-        x,
-        is.na(x$TEMP)==FALSE
-      )
-      x$FMCODE=data$FMCODE[1]
-      x$TIMESTAMP=x$date
-      x$date=NULL
-      x=select(x,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
-      return(x)
-    } else {
-      if(resolution=="DAY"){
-        x=timeAverage(
-          mydata=data,
-          avg.time="day",
-          start.date=start_date,
-          end.date=end_date,
-          statistic="mean")
-        x=subset(
-          x,
-          is.na(x$TEMP)==FALSE
-        )
-        x$FMCODE=data$FMCODE[1]
-        x$TIMESTAMP=x$date
-        x$date=NULL
-        x=select(x,"TOW_ID","TIMESTAMP","LATITUDE","LONGITUDE","DEPTH","TEMP","FMCODE")
-        dbDisconnect(conn)
-        return(x)
-      }
-    }
-  }
+  ## Return the values
+  return(
+    list(
+      "VESSEL_ID"=vessel_id,
+      "RAW_DATA"=raw_data,
+      "HAUL_AVG_DATA"=haul_avg_data
+    )
+  )
 }
