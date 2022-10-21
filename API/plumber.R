@@ -619,8 +619,26 @@ function(vessel_id){
   ## Connect to the database
   conn=dbConnector(db_config)
   
-  ## Grab the minimum date
-  minDate=dbGetQuery(
+  ## Grab the minimum date from the haul-averaged data
+  minDate_avg=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT X.MIN_DATE FROM (SELECT VESSEL_ID,MIN(MEAN_TIME) AS MIN_DATE FROM odn_data GROUP BY VESSEL_ID) X WHERE X.VESSEL_ID = ",
+      vessel_id
+    )
+  )$MIN_DATE
+  
+  ## Grab the maximum date from the haul-averaged data
+  maxDate_avg=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT X.MAX_DATE FROM (SELECT VESSEL_ID,MAX(MEAN_TIME) AS MAX_DATE FROM odn_data GROUP BY VESSEL_ID) X WHERE X.VESSEL_ID = ",
+      vessel_id
+    )
+  )$MAX_DATE
+  
+  ## Grab the minimum date from the haul-averaged data
+  minDate_raw=dbGetQuery(
     conn=conn,
     statement=paste0(
       "SELECT X.MIN_DATE FROM (SELECT VESSEL_ID,MIN(TIMESTAMP) AS MIN_DATE FROM odn_data_raw GROUP BY VESSEL_ID) X WHERE X.VESSEL_ID = ",
@@ -628,8 +646,8 @@ function(vessel_id){
     )
   )$MIN_DATE
   
-  ## Grab the maximum date
-  maxDate=dbGetQuery(
+  ## Grab the maximum date from the raw data
+  maxDate_raw=dbGetQuery(
     conn=conn,
     statement=paste0(
       "SELECT X.MAX_DATE FROM (SELECT VESSEL_ID,MAX(TIMESTAMP) AS MAX_DATE FROM odn_data_raw GROUP BY VESSEL_ID) X WHERE X.VESSEL_ID = ",
@@ -637,14 +655,21 @@ function(vessel_id){
     )
   )$MAX_DATE
   
+  
   ## Disconnect from the database
   dbDisconnect(conn)
   
   ## Return minDate and maxDate
   return(
     list(
-      "min_date"=minDate,
-      "max_date"=maxDate
+      "raw_data"=list(
+        "min_date"=minDate_raw,
+        "max_date"=maxDate_raw
+      ),
+      "haul_avg_data"=list(
+        "min_date"=minDate_avg,
+        "max_date"=maxDate_avg
+      )
     )
   )
 }
