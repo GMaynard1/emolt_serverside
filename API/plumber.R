@@ -212,6 +212,7 @@ function(loggerdat){
 #* Get logger MAC addresses associated with vessels
 #* @param vessel The vessel of interest
 #* @get /readMAC
+#* @serializer yaml
 function(vessel="ALL"){
   ## Create a read only connection to the database
   mydb=dbConnector(db_config3)
@@ -221,32 +222,54 @@ function(vessel="ALL"){
 
   ## Download and display data
   data=loggerdat(vessel,mydb)
-
-  ## Reformat to yaml
-  newdat=list()
-
+  
+  data=subset(data,is.na(data$MAC)==FALSE)
+  
+  ## Reformat the data frame
+  yamdat=data.frame(
+    boat_name=data$VESSEL_NAME[order(data$VESSEL_NAME)],
+    mac=NA,
+    serial=NA,
+    service_start=NA,
+    service_end=NA
+  )
   for(v in unique(data$VESSEL_NAME)){
-    x=subset(data,data$VESSEL_NAME==v)
-    x=x[order(ymd_hms(x$VISIT_DATE)),]
-    y=list(
-      "boat_name"=v,
-      "devices"=list(
+    yamdat$mac[which(yamdat$boat_name==v)]=subset(data,data$VESSEL_NAME==v)$MAC
+    yamdat$serial[which(yamdat$boat_name==v)]=subset(data,data$VESSEL_NAME==v)$SERIAL
+  }
+  for(r in 1:nrow(yamdat)){
+    yamdat$service_start[r]=subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="ADD")$VISIT_DATE
+    
+    yamdat$service_end[r]=ifelse(length(subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="REMOVE")$VISIT_DATE)==0,'NULL',subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="REMOVE")$VISIT_DATE)
+  }
+  ## Remove duplicates
+  yamdat$dup=duplicated(yamdat)
+  yamdat=subset(yamdat,yamdat$dup==FALSE)
+  yamdat$dup=NULL
+  
+  newdat=list()
+  
+  ## Reformat to yaml
+  for(v in 1:length(unique(yamdat$boat_name))){
+    x=subset(yamdat,yamdat$boat_name==unique(yamdat$boat_name)[v])
+    devlist=list()
+    for(i in 1:nrow(x)){
+      devlist[[i]]=list(
+        "mac"=x$mac[i],
+        "serial"=x$serial[i],
+        "service_start"=x$service_start[i],
+        "service_end"=x$service_end[i]
       )
-    )
-    allmacs=unique(x$MAC)
-    for(i in 1:length(allmacs)){
-      y$devices[i]$mac=allmacs[i]
-      y$devices[i]$serial=x$SERIAL[1]
-      y$devices[i]$service_start=which(x$MAC==allmacs[i])
-      y$devices[i]$service_end
     }
+    newdat[[v]]=list(
+      "boat_name"=unique(yamdat$boat_name)[v],
+      "devices"=devlist
     )
   }
-
-  return(data)
-
   ## Disconnect from the database
   dbDisconnectAll()
+  
+  return(newdat)
 }
 
 #* Create and export control file for Lowell logger system during vessel setup

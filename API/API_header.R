@@ -96,6 +96,7 @@ if(Sys.info()[["nodename"]]%in%c("emoltdev","eMOLT")){
 } else {
   db_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$dev_remote
   db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
+  db_config3=db_config2
   aws_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$aws_bucket
   odn_key=read_jwk("C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Keys/odn_key.json")
   for(i in 1:length(functions)){
