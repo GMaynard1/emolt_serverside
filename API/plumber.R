@@ -215,7 +215,7 @@ function(loggerdat){
 #* @serializer yaml
 function(vessel="ALL"){
   ## Create a read only connection to the database
-  mydb=dbConnector(db_config3)
+  mydb=dbConnector(db_config)
 
   ## Standardize vessel name
   vessel=vessel_name(vessel)
