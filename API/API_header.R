@@ -2,9 +2,9 @@
 ## Script name: API_header.R
 ##
 ## Purpose of script: contains code to load all libraries and external
-##    functions necessary for the eMOLT API to function. 
-##    This file should be stored at the same directory level as 
-##    plumber.R, which means the following location on the eMOLT 
+##    functions necessary for the eMOLT API to function.
+##    This file should be stored at the same directory level as
+##    plumber.R, which means the following location on the eMOLT
 ##    server:
 ##
 ##    - /etc/plumber/API_header.R
@@ -15,8 +15,8 @@
 ##
 ## Date Created: 2022-08-24
 ##
-## Software code created by U.S. Government employees is 
-## not subject to copyright in the United States 
+## Software code created by U.S. Government employees is
+## not subject to copyright in the United States
 ## (17 U.S.C. §105).
 ##
 ## Email: george.maynard@noaa.gov
@@ -24,7 +24,7 @@
 ## ---------------------------
 ## Notes:
 ##
-##  - 2022-08-24: Previously, this information was contained on lines 
+##  - 2022-08-24: Previously, this information was contained on lines
 ##      2-62 (approximately) of the API code
 ##  - 2022-09-28: Added new functions to pull raw data from the database for use
 ##      in the ODN portal. Still need to implement authentication before serving
@@ -77,10 +77,11 @@ functions=c(
 )
 
 ## Read in functions and database configuration values
-if(Sys.info()[["nodename"]]=="emoltdev"){
+if(Sys.info()[["nodename"]]%in%c("emoltdev","eMOLT")){
   ## Configuration values
   db_config=config::get(file="/etc/plumber/config.yml")$dev_local
   db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
+  db_config3=config::get(file="/etc/plumber/config.yml")$add_dev_intranet
   aws_config=config::get(file="/etc/plumber/config.yml")$aws_bucket
   odn_key=read_jwk("/etc/plumber/Keys/odn_key.json")
   ## Functions

@@ -5,7 +5,7 @@ source("API_header.R")
 
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
-#* @apiContact list(name="API Support",email="george.maynard@noaa.gov") 
+#* @apiContact list(name="API Support",email="george.maynard@noaa.gov")
 #* @apiVersion 1.1.1
 
 #* Authenticate for access from the ODN portal
@@ -28,19 +28,19 @@ function(req){
 function(loggerdat){
   ## Create a read only database connection
   mydb = dbConnector(db_config)
-  
+
   ## Create a read-write database connection
   conn=dbConnector(db_config2)
-  
+
   ## Read in the json object
   loggerdat=parse_json(loggerdat)
-  
+
   ## Lookup logger by serial number
   loggerExists=loggerdat$SN%in%dbGetQuery(
     conn=mydb,
     statement="SELECT * FROM EQUIPMENT_INVENTORY WHERE EQUIPMENT_TYPE = 'LOGGER'"
   )$SERIAL_NUMBER
-  
+
   ## If the logger already exists, return an error
   if(loggerExists){
     return("Logger already exists. Please use the 'UpdateLogger' function if you wish to edit an existing logger.")
@@ -59,7 +59,7 @@ function(loggerdat){
       return("MAC address improperly formatted. Please try xx:xx:xx:xx:xx:xx")
       dbDisconnectAll()
       break()
-    }  
+    }
     ## Reformat location
     loggerdat$Location=ifelse(
       loggerdat$Location==1,
@@ -214,14 +214,37 @@ function(loggerdat){
 #* @get /readMAC
 function(vessel="ALL"){
   ## Create a read only connection to the database
-  mydb=dbConnector(db_config)
-  
+  mydb=dbConnector(db_config3)
+
   ## Standardize vessel name
   vessel=vessel_name(vessel)
-  
+
   ## Download and display data
-  loggerdat(vessel,mydb)
-  
+  data=loggerdat(vessel,mydb)
+
+  ## Reformat to yaml
+  newdat=list()
+
+  for(v in unique(data$VESSEL_NAME)){
+    x=subset(data,data$VESSEL_NAME==v)
+    x=x[order(ymd_hms(x$VISIT_DATE)),]
+    y=list(
+      "boat_name"=v,
+      "devices"=list(
+      )
+    )
+    allmacs=unique(x$MAC)
+    for(i in 1:length(allmacs)){
+      y$devices[i]$mac=allmacs[i]
+      y$devices[i]$serial=x$SERIAL[1]
+      y$devices[i]$service_start=which(x$MAC==allmacs[i])
+      y$devices[i]$service_end
+    }
+    )
+  }
+
+  return(data)
+
   ## Disconnect from the database
   dbDisconnectAll()
 }
@@ -233,19 +256,19 @@ function(vessel="ALL"){
 function(vessel){
   ## Create a read only connection to the database
   mydb=dbConnector(db_config)
-  
+
   ## Standardize the vessel name
   vessel=vessel_name(vessel)
-  
+
   ## Query the logger metadata out of the database
   loggerdat=loggerdat(vessel,mydb)
-  
+
   ## Query the comms unit metadata out of the database
   commsdat=commsdat(vessel,mydb)
-  
+
   ## Query the vessel data out of the database
   vesseldat=vesseldat(vessel,mydb)
-  
+
   ## Convert gear to the correct format
   gear=vesseldat$FMCODE
   if(gear=="F"){
@@ -257,7 +280,7 @@ function(vessel){
       gear="other"
     }
   }
-  
+
   ## Convert comms make to the correct format
   if(commsdat$MAKE=="ROCKBLOCK"){
     transmitter='rock'
@@ -283,7 +306,7 @@ function(vessel){
       "_control_file.txt"
     )
   }
-  
+
   ## Use tab separated strings to create the file
   file.create(filename)
   fileconn=file(filename)
@@ -319,17 +342,17 @@ function(vessel){
 function(vessel){
   ## Create a read-only connection to the database
   mydb=dbConnector(db_config)
-  
-  ## Standardize the vessel name to all uppercase, no underscore, remove the 
+
+  ## Standardize the vessel name to all uppercase, no underscore, remove the
   ## leading characters F/V if they exist
   vessel=vessel_name(vessel)
-  
+
   ## Query the logger metadata out of the database
   loggerdat=loggerdat(vessel,mydb)
-  
+
   ## Query the gear type out of the database
   gear=vesseldat(vessel,mydb)$FMCODE
-  
+
   ## Convert gear to the correct format
   if(gear=="F"){
     gear="fixed"
@@ -445,21 +468,21 @@ function(vessel){
 function(data,serial,imei,transmit_time){
   ## Print startup message to log
   logMessage("Processing satellite transmission",data)
-  
+
   ## Create a read-write database connection
   conn = dbConnector(db_config)
-  
+
   ## Convert transmission time to POSIX format
   transmit_time = ymd_hms(transmit_time)
-  
+
   transmit_time = floor_date(
     transmit_time,
     unit="minutes"
   )
-  
+
   ## Identify the vessel using information from the satellite transmitter
   vessel_id = vesselSatLookup(imei,serial,conn)
-  
+
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -470,19 +493,19 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
-  
+
   ## Check to see if the data is a status report or actual fishing
   datType=checkTransmissionType(data)
-  
+
   logMessage("Transmission Type Identified",datType)
-  
+
   ## Process the data according to the transmission type
-  
+
   if(datType=="SHORT_STATUS"){
     new_procShortStatus(datastring,conn,vessel_id,transmit_time)
   } else {
     if(datType=="SUMMARY_DATA"){
-    new_proc_summary_data(datastring,conn,vessel_id,transmit_time) 
+    new_proc_summary_data(datastring,conn,vessel_id,transmit_time)
     }
   }
 }
@@ -496,16 +519,16 @@ function(data,serial,imei,transmit_time){
 function(data,serial,imei,transmit_time){
   ## Print startup message to log
   logMessage("Processing old mobile satellite transmission",data)
-  
+
   ## Connect to database
   conn = dbConnector(db_config)
-  
+
   ## Identify the vessel
   vessel_id=vesselSatLookup(imei,serial,conn)
-  
+
   ## Convert transmission time to POSIX format
   transmit_time = floor_date(ymd_hms(transmit_time),unit="minutes")
-  
+
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -516,12 +539,12 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
-  
+
   ## Check to see if the data is a status report or actual fishing
   datType=checkTransmissionType(data)
-  
+
   logMessage("Transmission Type Identified",datType)
-  
+
   if(datType=="SHORT_STATUS"){
     oldMobile_procShortStatus(datastring,conn,vessel_id,transmit_time)
   } else {
@@ -540,20 +563,20 @@ function(data,serial,imei,transmit_time){
 function(data,serial,imei,transmit_time){
   ## Print startup message to log
   logMessage("Processing old fixed satellite transmission",data)
-  
+
   ## Clear all existing connections
   dbDisconnectAll()
-  
+
   ## Connect to database
   mydb = dbConnector(db_config)
   conn = dbConnector(db_config2)
-  
+
   ## Identify the vessel
   vessel_id=vesselSatLookup(imei,serial,mydb)
-  
+
   ## Convert transmission time to POSIX format
   transmit_time = floor_date(ymd_hms(transmit_time),unit="minutes")
-  
+
   ## Decode the data
   ## Convert the data from hex to character
   datastring=rawToChar(
@@ -564,12 +587,12 @@ function(data,serial,imei,transmit_time){
       )
     )
   )
-  
+
   ## Check to see if the data is a status report or actual fishing
   datType=checkTransmissionType(data)
-  
+
   logMessage("Transmission Type Identified",datType)
-  
+
   if(datType=="SHORT_STATUS"){
     old_fixed_proc_short_status(datastring,conn,vessel_id,transmit_time)
   } else {
@@ -587,18 +610,18 @@ function(data,serial,imei,transmit_time){
 # #* @param last_modified The last time the file was modified in the AWS S3 Bucket
 # #* @post /dev_S3_load
 # function(date,filename,newfilename,contents,last_modified){
-#   
+#
 #   ## Print a startup message to the log
 #   logMessage("Processing S3 file ", filename)
-#   
+#
 #   ## Connect to database
 #   conn=dbConnector(db_config2)
-#   
+#
 #   ## Identify the filetype
 #   filetype=s3_filetype(newfilename)
-#   
+#
 #   logMessage("Filetype is: ", filetype)
-#   ## If the filetype is unknown, return an error. Otherwise, process the file 
+#   ## If the filetype is unknown, return an error. Otherwise, process the file
 #   if(filetype=="UNKNOWN"){
 #     dbDisconnect(conn)
 #     return(
@@ -618,7 +641,7 @@ function(data,serial,imei,transmit_time){
 function(vessel_id){
   ## Connect to the database
   conn=dbConnector(db_config)
-  
+
   ## Grab the minimum date from the haul-averaged data
   minDate_avg=dbGetQuery(
     conn=conn,
@@ -627,7 +650,7 @@ function(vessel_id){
       vessel_id
     )
   )$MIN_DATE
-  
+
   ## Grab the maximum date from the haul-averaged data
   maxDate_avg=dbGetQuery(
     conn=conn,
@@ -636,7 +659,7 @@ function(vessel_id){
       vessel_id
     )
   )$MAX_DATE
-  
+
   ## Grab the minimum date from the haul-averaged data
   minDate_raw=dbGetQuery(
     conn=conn,
@@ -645,7 +668,7 @@ function(vessel_id){
       vessel_id
     )
   )$MIN_DATE
-  
+
   ## Grab the maximum date from the raw data
   maxDate_raw=dbGetQuery(
     conn=conn,
@@ -654,11 +677,11 @@ function(vessel_id){
       vessel_id
     )
   )$MAX_DATE
-  
-  
+
+
   ## Disconnect from the database
   dbDisconnect(conn)
-  
+
   ## Return minDate and maxDate
   return(
     list(
@@ -681,7 +704,7 @@ function(vessel_id){
 function(vessel_id,start_date,end_date){
   ## Connect to the database
   conn=dbConnector(db_config)
-  
+
   ## Grab the raw data from the database
   raw_data=dbGetQuery(
     conn=conn,
@@ -695,7 +718,7 @@ function(vessel_id,start_date,end_date){
       "'"
     )
   )
-  
+
   ## Grab the haul average data from the database
   haul_avg_data=dbGetQuery(
     conn=conn,
@@ -709,11 +732,11 @@ function(vessel_id,start_date,end_date){
       "'"
     )
   )
-  
-  ## Apply the QAQC routine to the raw data (haul average data should 
+
+  ## Apply the QAQC routine to the raw data (haul average data should
   ## already be QAQC'd)
   #THIS IS JUST A PLACEHOLDER FOR NOW
-  
+
   ## Return the values
   return(
     list(

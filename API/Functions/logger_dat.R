@@ -1,10 +1,18 @@
 ## Select logger data from the database
 loggerdat=function(vessel,dbconn){
   if(vessel=="ALL"){
-    dbGetQuery(
+    start=dbGetQuery(
       conn=dbconn,
-      statement="SELECT * FROM vessel_mac WHERE EQUIPMENT_TYPE = 'LOGGER'"
+      statement="SELECT * FROM zz_mac_start2"
     )
+    start$Action='REMOVE'
+    end=dbGetQuery(
+      conn=dbconn,
+      statement="SELECT * FROM zz_mac_end2"
+    )
+    end$Action="ADD"
+    data=rbind(start,end)
+    return(data)
   } else {
     dbGetQuery(
       conn=dbconn,
