@@ -813,7 +813,7 @@ function(cfrf_id){
   return(
     list(
       "VESSEL_NAME"=paste0('CFRF VESSEL ',cfrf_id),
-      "RAW_DATA"=raw_data,
+      "RAW_DATA"=raw_data
     )
   )
 }
