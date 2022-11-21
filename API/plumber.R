@@ -12,13 +12,20 @@ source("API_header.R")
 #* @filter ODN_Auth
 function(req){
   ## If the request is for an unsecured endpoint, just pass it through
-  if(req$PATH_INFO!="/get_odn_data"){
+  if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
     plumber::forward()
   } else {
     ## Otherwise, read in the key and attempt to authenticate
-    odn_pubkey=as.list(odn_key)$pubkey
-    d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
-    plumber::forward()
+    if(req$PATH_INFO==("/get_odn_data")){
+      odn_pubkey=as.list(odn_key)$pubkey
+      d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
+      plumber::forward()
+    }
+    if(req$PATH_INFO==("/get_cfrf_data")){
+      cfrf_pubkey=as.list(cfrf_key)$pubkey
+      d_claim=jwt_decode_sig(req$HTTP_APIKEY,cfrf_pubkey)
+      plumber::forward()
+    }
   }
 }
 
@@ -719,6 +726,7 @@ function(vessel_id){
     )
   )
 }
+
 #* Make high resolution data for a particular user available to the ODN portal
 #* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
 #* @param start_date beginning date of requested data
@@ -766,6 +774,46 @@ function(vessel_id,start_date,end_date){
       "VESSEL_ID"=vessel_id,
       "RAW_DATA"=raw_data,
       "HAUL_AVG_DATA"=haul_avg_data
+    )
+  )
+}
+
+#* Make high resolution data for a particular vessel available to CFRF end users
+#* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
+#* @param start_date beginning date of requested data
+#* @param end_date end date of requested data
+#* @get /get_cfrf_data
+function(cfrf_id){
+  ## Connect to the database
+  conn=dbConnector(db_config)
+  
+  ## Look up the corresponding vessel_id using the CFRF ID
+  vessel_id=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT VESSEL_ID FROM VESSELS WHERE VESSEL_NAME = 'CFRF VESSEL ",
+      cfrf_id,
+      "'"
+    )
+  )$VESSEL_ID
+  ## Grab the raw data from the database
+  raw_data=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM odn_data_raw WHERE VESSEL_ID = ",
+      vessel_id
+    )
+  )
+  
+  ## Apply the QAQC routine to the raw data (haul average data should
+  ## already be QAQC'd)
+  #THIS IS JUST A PLACEHOLDER FOR NOW
+  
+  ## Return the values
+  return(
+    list(
+      "VESSEL_NAME"=paste0('CFRF VESSEL ',cfrf_id),
+      "RAW_DATA"=raw_data,
     )
   )
 }
