@@ -800,7 +800,7 @@ function(cfrf_id){
   raw_data=dbGetQuery(
     conn=conn,
     statement=paste0(
-      "SELECT * FROM odn_data_raw WHERE VESSEL_ID = ",
+      "SELECT * FROM cfrf_data_raw WHERE VESSEL_ID = ",
       vessel_id
     )
   )
