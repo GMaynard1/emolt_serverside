@@ -933,3 +933,106 @@ function(cfrf_id){
     )
   )
 }
+
+#* Add a new equipment installation or removal record to the database
+#* @param vessel_id
+#* @param contact_id
+#* @param port
+#* @param visit_date
+#* @param visit_notes
+#* @param equip_removed
+#* @param equip_installed
+#* @post /equipment_install_removal
+function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip_installed=NA){
+  ## Connect to the database
+  conn=dbConnector(db_config2)
+  ## Look for an existing visit record
+  visit_record=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM VESSEL_VISIT_LOG WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND VISIT_DATE = '",
+      visit_date,
+      "' AND LEAD_TECH = ",
+      contact_id,
+      " AND PORT = ",
+      port
+    )
+  )
+  ## If the record exists, move on to the next step, otherwise add a new
+  ## vessel visit record
+  if(nrow(visit_record)!=0){
+    visit_id=visit_record$VISIT_ID
+  } else {
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "INSERT INTO `VESSEL_VISIT_LOG`(`VISIT_ID`,`VESSEL_ID`,`VISIT_DATE`,`LEAD_TECH`,`PORT`,`VISIT_NOTES`) VALUES (0,",
+        vessel_id,
+        ",'",
+        visit_date,
+        "',",
+        contact_id,
+        ",",
+        port,
+        ",'",
+        visit_notes,
+        "')"
+      )
+    )
+    visit_record=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT * FROM VESSEL_VISIT_LOG WHERE VESSEL_ID = ",
+        vessel_id,
+        " AND VISIT_DATE = '",
+        visit_date,
+        "' AND LEAD_TECH = ",
+        contact_id,
+        " AND PORT = ",
+        port
+      )
+    )
+    visit_id=visit_record$VISIT_ID
+  }
+  ## Look up the start and end inventory_id values using the serial numbers
+  start_inventory_id=ifelse(
+    is.na(equip_removed),
+    NA,
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT INVENTORY_ID FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
+        equip_removed,
+        "'"
+      )
+    )$INVENTORY_ID
+  )
+  end_inventory_id=ifelse(
+    is.na(equip_installed),
+    NA,
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT INVENTORY_ID FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
+        equip_installed,
+        "'"
+      )
+    )
+  )
+  ## Insert the record into the equipment change log
+  statement=paste0(
+    "INSERT INTO `EQUIPMENT_CHANGE`(`EQUIPMENT_CHANGE_ID`,`START_INVENTORY_ID`,`END_INVENTORY_ID`,`VISIT_ID`) VALUES (0,",
+    start_inventory_id,
+    ",",
+    end_inventory_id,
+    ",",
+    visit_id,
+    ")"
+  )
+  dbGetQuery(
+    conn=conn,
+    statement=statement
+  )
+}
