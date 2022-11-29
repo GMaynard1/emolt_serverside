@@ -229,9 +229,9 @@ function(vessel="ALL"){
 
   ## Download and display data
   data=loggerdat(vessel,mydb)
-  
+
   data=subset(data,is.na(data$MAC)==FALSE)
-  
+
   ## Reformat the data frame
   yamdat=data.frame(
     boat_name=data$VESSEL_NAME[order(data$VESSEL_NAME)],
@@ -246,16 +246,16 @@ function(vessel="ALL"){
   }
   for(r in 1:nrow(yamdat)){
     yamdat$service_start[r]=subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="ADD")$VISIT_DATE
-    
+
     yamdat$service_end[r]=ifelse(length(subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="REMOVE")$VISIT_DATE)==0,'NULL',subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="REMOVE")$VISIT_DATE)
   }
   ## Remove duplicates
   yamdat$dup=duplicated(yamdat)
   yamdat=subset(yamdat,yamdat$dup==FALSE)
   yamdat$dup=NULL
-  
+
   newdat=list()
-  
+
   ## Reformat to yaml
   for(v in 1:length(unique(yamdat$boat_name))){
     x=subset(yamdat,yamdat$boat_name==unique(yamdat$boat_name)[v])
@@ -275,7 +275,7 @@ function(vessel="ALL"){
   }
   ## Disconnect from the database
   dbDisconnectAll()
-  
+
   return(newdat)
 }
 
@@ -779,14 +779,12 @@ function(vessel_id,start_date,end_date){
 }
 
 #* Make high resolution data for a particular vessel available to CFRF end users
-#* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
-#* @param start_date beginning date of requested data
-#* @param end_date end date of requested data
+#* @param cfrf_id The CFRF ID number associated with the vessel of interest
 #* @get /get_cfrf_data
 function(cfrf_id){
   ## Connect to the database
   conn=dbConnector(db_config)
-  
+
   ## Look up the corresponding vessel_id using the CFRF ID
   vessel_id=dbGetQuery(
     conn=conn,
@@ -807,7 +805,7 @@ function(cfrf_id){
   )
   finish=Sys.time()
   round(difftime(finish,start,units='secs'),2)
-  
+
   ## Apply the QAQC routine to the raw data
   totTime=0
   start=Sys.time()
