@@ -6,19 +6,26 @@ source("API_header.R")
 #* @apiTitle eMOLT dev API
 #* @apiDescription This is the development API for the eMOLT project.
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov")
-#* @apiVersion 1.1.1
+#* @apiVersion 1.1.2
 
 #* Authenticate for access from the ODN portal
 #* @filter ODN_Auth
 function(req){
   ## If the request is for an unsecured endpoint, just pass it through
-  if(req$PATH_INFO!="/get_odn_data"){
+  if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
     plumber::forward()
   } else {
     ## Otherwise, read in the key and attempt to authenticate
-    odn_pubkey=as.list(odn_key)$pubkey
-    d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
-    plumber::forward()
+    if(req$PATH_INFO==("/get_odn_data")){
+      odn_pubkey=as.list(odn_key)$pubkey
+      d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
+      plumber::forward()
+    }
+    if(req$PATH_INFO==("/get_cfrf_data")){
+      cfrf_pubkey=as.list(cfrf_key)$pubkey
+      d_claim=jwt_decode_sig(req$HTTP_APIKEY,cfrf_pubkey)
+      plumber::forward()
+    }
   }
 }
 
@@ -719,6 +726,7 @@ function(vessel_id){
     )
   )
 }
+
 #* Make high resolution data for a particular user available to the ODN portal
 #* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
 #* @param start_date beginning date of requested data
@@ -766,6 +774,164 @@ function(vessel_id,start_date,end_date){
       "VESSEL_ID"=vessel_id,
       "RAW_DATA"=raw_data,
       "HAUL_AVG_DATA"=haul_avg_data
+    )
+  )
+}
+
+#* Make high resolution data for a particular vessel available to CFRF end users
+#* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
+#* @param start_date beginning date of requested data
+#* @param end_date end date of requested data
+#* @get /get_cfrf_data
+function(cfrf_id){
+  ## Connect to the database
+  conn=dbConnector(db_config)
+  
+  ## Look up the corresponding vessel_id using the CFRF ID
+  vessel_id=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT VESSEL_ID FROM VESSELS WHERE VESSEL_NAME = 'CFRF VESSEL ",
+      cfrf_id,
+      "'"
+    )
+  )$VESSEL_ID
+  ## Grab the raw data from the database
+  start=Sys.time()
+  raw_data=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM cfrf_data_raw WHERE VESSEL_ID = ",
+      vessel_id
+    )
+  )
+  finish=Sys.time()
+  round(difftime(finish,start,units='secs'),2)
+  
+  ## Apply the QAQC routine to the raw data
+  totTime=0
+  start=Sys.time()
+  qaqc=ExpectedRegionCheck(
+    region="North_Atlantic",
+    dataframe=raw_data
+    )
+  finish=Sys.time()
+  cat(
+    "ExpectedRegionCheck took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=ImpossibleDateCheck(
+    dataframe=qaqc,
+    timecol="TIMESTAMP"
+  )
+  finish=Sys.time()
+  cat(
+    "ImpossibleDateCheck took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=ImpossibleLocationCheck(
+    data=qaqc
+  )
+  finish=Sys.time()
+  cat(
+    "ImpossibleLocationCheck took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=OnLandCheck(
+    data=qaqc
+  )
+  finish=Sys.time()
+  cat(
+    "OnLandCheck took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=RateOfChangeCheck(
+    column="TEMP",
+    dataframe=qaqc
+  )
+  finish=Sys.time()
+  cat(
+    "RateOfChangeCheck -TEMP- took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=RateOfChangeCheck(
+    column="DEPTH",
+    dataframe=qaqc
+  )
+  finish=Sys.time()
+  cat(
+    "RateOfChangeCheck -DEPTH- took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=SpikeCheck_Temp(
+    dataframe=qaqc,
+    temp_column="TEMP",
+    time_column="TIMESTAMP",
+    depth_column="DEPTH"
+  )
+  finish=Sys.time()
+  cat(
+    "SpikeCheck_Temp took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n"
+  )
+  totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  start=Sys.time()
+  qaqc=StuckValueCheck(
+    dataframe=qaqc,
+    depth_column="DEPTH",
+    time_column="TIMESTAMP",
+    temp_column="TEMP",
+    salinity_column=NA,
+    tol_temp=0.0001
+  )
+  finish=Sys.time()
+  cat(
+    "StuckValueCheck took",
+    round(difftime(finish,start,units='secs'),2),
+    "seconds for",
+    nrow(qaqc),
+    "records\n\n",
+    "TOTAL QAQC TIME =",
+    totTime
+  )
+  ## Return the values
+  return(
+    list(
+      "VESSEL_NAME"=paste0('CFRF VESSEL ',cfrf_id),
+      "RAW_DATA"=raw_data
     )
   )
 }
