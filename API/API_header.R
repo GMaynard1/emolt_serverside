@@ -36,6 +36,7 @@
 ## Load necessary libraries
 require(aws.s3)
 require(config)
+require(devtools)
 require(geosphere)
 require(jose)
 require(jsonlite)
@@ -47,6 +48,10 @@ require(reticulate)
 require(RMySQL)
 require(stringr)
 require(wkb)
+
+## Install the most recent version of the QAQC library from GitHub
+install_github("GMaynard1/emolt_QAQC",force=TRUE,upgrade='always',)
+require(RMyDataTrash)
 
 ## Ensure enough database connections are available for multiple vessels
 ## reporting simultaneously
@@ -83,6 +88,7 @@ if(Sys.info()[["nodename"]]%in%c("emoltdev","eMOLT")){
   db_config2=config::get(file="/etc/plumber/config.yml")$add_local_dev
   aws_config=config::get(file="/etc/plumber/config.yml")$aws_bucket
   odn_key=read_jwk("/etc/plumber/Keys/odn_key.json")
+  cfrf_key=read_jwk("/etc/plumber/Keys/cfrf_key.json")
   ## Functions
   for(i in 1:length(functions)){
     source(
@@ -97,6 +103,7 @@ if(Sys.info()[["nodename"]]%in%c("emoltdev","eMOLT")){
   db_config2=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$add_remote_dev
   aws_config=config::get(file="C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/config.yml")$aws_bucket
   odn_key=read_jwk("C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Keys/odn_key.json")
+  cfrf_key=read_jwk("C:/Users/george.maynard/Documents/GitHubRepos/emolt_serverside/API/Keys/cfrf_key.json")
   for(i in 1:length(functions)){
     source(
       paste0(
