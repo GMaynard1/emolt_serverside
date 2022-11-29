@@ -8,8 +8,8 @@ source("API_header.R")
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov")
 #* @apiVersion 1.1.2
 
-#* Authenticate for access from the ODN portal
-#* @filter ODN_Auth
+#* Authenticate for access to raw data
+#* @filter Raw_Data_Auth
 function(req){
   ## If the request is for an unsecured endpoint, just pass it through
   if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
