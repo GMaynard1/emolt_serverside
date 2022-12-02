@@ -13,14 +13,5 @@ loggerdat=function(vessel,dbconn){
     end$Action="ADD"
     data=rbind(start,end)
     return(data)
-  } else {
-    dbGetQuery(
-      conn=dbconn,
-      statement=paste0(
-        "SELECT * FROM vessel_mac WHERE VESSEL_NAME = '",
-        vessel,
-        "' AND EQUIPMENT_TYPE = 'LOGGER'"
-      )
-    )
   }
 }

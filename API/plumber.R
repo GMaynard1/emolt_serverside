@@ -235,12 +235,17 @@ function(vessel="ALL"){
   ## Reformat the data frame
   yamdat=data.frame(
     boat_name=data$VESSEL_NAME[order(data$VESSEL_NAME)],
+    boat_gear=data$GEAR_TYPE[order(data$VESSEL_NAME)],
+    make=NA,
+    model=NA,
     mac=NA,
     serial=NA,
     service_start=NA,
     service_end=NA
   )
   for(v in unique(data$VESSEL_NAME)){
+    yamdat$make[which(yamdat$boat_name==v)]=subset(data,data$VESSEL_NAME==v)$MAKE
+    yamdat$model[which(yamdat$boat_name==v)]=subset(data,data$VESSEL_NAME==v)$MODEL
     yamdat$mac[which(yamdat$boat_name==v)]=subset(data,data$VESSEL_NAME==v)$MAC
     yamdat$serial[which(yamdat$boat_name==v)]=subset(data,data$VESSEL_NAME==v)$SERIAL
   }
@@ -262,6 +267,8 @@ function(vessel="ALL"){
     devlist=list()
     for(i in 1:nrow(x)){
       devlist[[i]]=list(
+        "make"=x$make[i],
+        "model"=x$model[i],
         "mac"=x$mac[i],
         "serial"=x$serial[i],
         "service_start"=x$service_start[i],
@@ -270,6 +277,7 @@ function(vessel="ALL"){
     }
     newdat[[v]]=list(
       "boat_name"=unique(yamdat$boat_name)[v],
+      "gear_type"=x$boat_gear[1],
       "devices"=devlist
     )
   }
