@@ -229,9 +229,9 @@ function(vessel="ALL"){
 
   ## Download and display data
   data=loggerdat(vessel,mydb)
-  
+
   data=subset(data,is.na(data$MAC)==FALSE)
-  
+
   ## Reformat the data frame
   yamdat=data.frame(
     boat_name=data$VESSEL_NAME[order(data$VESSEL_NAME)],
@@ -251,16 +251,16 @@ function(vessel="ALL"){
   }
   for(r in 1:nrow(yamdat)){
     yamdat$service_start[r]=subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="ADD")$VISIT_DATE
-    
+
     yamdat$service_end[r]=ifelse(length(subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="REMOVE")$VISIT_DATE)==0,'NULL',subset(data,data$SERIAL==yamdat$serial[r]&data$MAC==yamdat$mac[r]&data$VESSEL_NAME==yamdat$boat_name[r]&data$Action=="REMOVE")$VISIT_DATE)
   }
   ## Remove duplicates
   yamdat$dup=duplicated(yamdat)
   yamdat=subset(yamdat,yamdat$dup==FALSE)
   yamdat$dup=NULL
-  
+
   newdat=list()
-  
+
   ## Reformat to yaml
   for(v in 1:length(unique(yamdat$boat_name))){
     x=subset(yamdat,yamdat$boat_name==unique(yamdat$boat_name)[v])
@@ -283,7 +283,7 @@ function(vessel="ALL"){
   }
   ## Disconnect from the database
   dbDisconnectAll()
-  
+
   return(newdat)
 }
 
@@ -787,14 +787,12 @@ function(vessel_id,start_date,end_date){
 }
 
 #* Make high resolution data for a particular vessel available to CFRF end users
-#* @param vessel_id The vessel_id from the eMOLT database for the vessel of interest
-#* @param start_date beginning date of requested data
-#* @param end_date end date of requested data
+#* @param cfrf_id The CFRF ID number associated with the vessel of interest
 #* @get /get_cfrf_data
 function(cfrf_id){
   ## Connect to the database
   conn=dbConnector(db_config)
-  
+
   ## Look up the corresponding vessel_id using the CFRF ID
   vessel_id=dbGetQuery(
     conn=conn,
@@ -815,7 +813,7 @@ function(cfrf_id){
   )
   finish=Sys.time()
   round(difftime(finish,start,units='secs'),2)
-  
+
   ## Apply the QAQC routine to the raw data
   totTime=0
   start=Sys.time()
@@ -941,5 +939,108 @@ function(cfrf_id){
       "VESSEL_NAME"=paste0('CFRF VESSEL ',cfrf_id),
       "RAW_DATA"=raw_data
     )
+  )
+}
+
+#* Add a new equipment installation or removal record to the database
+#* @param vessel_id
+#* @param contact_id
+#* @param port
+#* @param visit_date
+#* @param visit_notes
+#* @param equip_removed
+#* @param equip_installed
+#* @post /equipment_install_removal
+function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip_installed=NA){
+  ## Connect to the database
+  conn=dbConnector(db_config2)
+  ## Look for an existing visit record
+  visit_record=dbGetQuery(
+    conn=conn,
+    statement=paste0(
+      "SELECT * FROM VESSEL_VISIT_LOG WHERE VESSEL_ID = ",
+      vessel_id,
+      " AND VISIT_DATE = '",
+      visit_date,
+      "' AND LEAD_TECH = ",
+      contact_id,
+      " AND PORT = ",
+      port
+    )
+  )
+  ## If the record exists, move on to the next step, otherwise add a new
+  ## vessel visit record
+  if(nrow(visit_record)!=0){
+    visit_id=visit_record$VISIT_ID
+  } else {
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "INSERT INTO `VESSEL_VISIT_LOG`(`VISIT_ID`,`VESSEL_ID`,`VISIT_DATE`,`LEAD_TECH`,`PORT`,`VISIT_NOTES`) VALUES (0,",
+        vessel_id,
+        ",'",
+        visit_date,
+        "',",
+        contact_id,
+        ",",
+        port,
+        ",'",
+        visit_notes,
+        "')"
+      )
+    )
+    visit_record=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT * FROM VESSEL_VISIT_LOG WHERE VESSEL_ID = ",
+        vessel_id,
+        " AND VISIT_DATE = '",
+        visit_date,
+        "' AND LEAD_TECH = ",
+        contact_id,
+        " AND PORT = ",
+        port
+      )
+    )
+    visit_id=visit_record$VISIT_ID
+  }
+  ## Look up the start and end inventory_id values using the serial numbers
+  start_inventory_id=ifelse(
+    is.na(equip_removed),
+    NA,
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT INVENTORY_ID FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
+        equip_removed,
+        "'"
+      )
+    )$INVENTORY_ID
+  )
+  end_inventory_id=ifelse(
+    is.na(equip_installed),
+    NA,
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT INVENTORY_ID FROM EQUIPMENT_INVENTORY WHERE SERIAL_NUMBER = '",
+        equip_installed,
+        "'"
+      )
+    )
+  )
+  ## Insert the record into the equipment change log
+  statement=paste0(
+    "INSERT INTO `EQUIPMENT_CHANGE`(`EQUIPMENT_CHANGE_ID`,`START_INVENTORY_ID`,`END_INVENTORY_ID`,`VISIT_ID`) VALUES (0,",
+    start_inventory_id,
+    ",",
+    end_inventory_id,
+    ",",
+    visit_id,
+    ")"
+  )
+  dbGetQuery(
+    conn=conn,
+    statement=statement
   )
 }
