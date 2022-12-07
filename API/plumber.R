@@ -1028,6 +1028,43 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
       )
     )$INVENTORY_ID
   )
+  ## Start and End IDs cannot both be NA
+  if(is.na(end_inventory_id)*is.na(start_inventory_id)==1){
+    dbDisconnectAll()
+    stop("All records must include at least one install or one removal.")
+  }
+  ## Update the hardware records to reflect the new custodian
+  ## Removed equipment is assigned to the technician
+  if(is.na(start_inventory_id)==FALSE){
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "UPDATE EQUIPMENT_INVENTORY SET CURRENT_LOCATION = 'HOME' AND SET CUSTODIAN = ",
+        contact_id,
+        ", WHERE INVENTORY_ID = ",
+        start_inventory_id
+      )
+    )
+  }
+  ## Installed equipment is assigned to the vessel owner
+  if(is.na(end_inventory_id)==FALSE){
+    owner=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT * FROM VESSELS WHERE VESSEL_ID = ",
+        vessel_id
+      )
+    )$OWNER
+    dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "UPDATE EQUIPMENT_INVENTORY SET CURRENT_LOCATION = 'VESSEL' AND CUSTODIAN = ",
+        owner,
+        " WHERE INVENTORY_ID = ",
+        end_inventory_id
+      )
+    )
+  }
   ## Create an INSERT statement for the new record
   statement=paste0(
     "INSERT INTO `EQUIPMENT_CHANGE`(`EQUIPMENT_CHANGE_ID`,`START_INVENTORY_ID`,`END_INVENTORY_ID`,`VISIT_ID`) VALUES (0,",
@@ -1044,5 +1081,9 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
   dbGetQuery(
     conn=conn,
     statement=statement
+  )
+  dbDisconnectAll()
+  return(
+    "Record added successfully"
   )
 }
