@@ -1026,9 +1026,9 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
         equip_installed,
         "'"
       )
-    )
+    )$INVENTORY_ID
   )
-  ## Insert the record into the equipment change log
+  ## Create an INSERT statement for the new record
   statement=paste0(
     "INSERT INTO `EQUIPMENT_CHANGE`(`EQUIPMENT_CHANGE_ID`,`START_INVENTORY_ID`,`END_INVENTORY_ID`,`VISIT_ID`) VALUES (0,",
     start_inventory_id,
@@ -1038,6 +1038,9 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
     visit_id,
     ")"
   )
+  ## Replace the "NA" (R) with "NULL" (MySQL)
+  statement=gsub("NA","NULL",statement)
+  ## Run the insert statement
   dbGetQuery(
     conn=conn,
     statement=statement
