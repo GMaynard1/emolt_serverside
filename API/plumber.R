@@ -952,6 +952,7 @@ function(cfrf_id){
 #* @post /equipment_install_removal
 function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip_installed=NA){
   ## Connect to the database
+  config::get(file="/etc/plumber/config.yml")$add_dev_intranet
   conn=dbConnector(db_config2)
   ## Look for an existing visit record
   visit_record=dbGetQuery(
@@ -1039,9 +1040,9 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
     dbGetQuery(
       conn=conn,
       statement=paste0(
-        "UPDATE EQUIPMENT_INVENTORY SET CURRENT_LOCATION = 'HOME' AND SET CUSTODIAN = ",
+        "UPDATE EQUIPMENT_INVENTORY SET CURRENT_LOCATION = 'HOME', CUSTODIAN = ",
         contact_id,
-        ", WHERE INVENTORY_ID = ",
+        " WHERE INVENTORY_ID = ",
         start_inventory_id
       )
     )
