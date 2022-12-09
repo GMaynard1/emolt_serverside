@@ -8,26 +8,26 @@ source("API_header.R")
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov")
 #* @apiVersion 1.1.2
 
-#* Authenticate for access to raw data
-#* @filter Raw_Data_Auth
-function(req){
-  ## If the request is for an unsecured endpoint, just pass it through
-  if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
-    plumber::forward()
-  } else {
-    ## Otherwise, read in the key and attempt to authenticate
-    if(req$PATH_INFO==("/get_odn_data")){
-      odn_pubkey=as.list(odn_key)$pubkey
-      d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
-      plumber::forward()
-    }
-    if(req$PATH_INFO==("/get_cfrf_data")){
-      cfrf_pubkey=as.list(cfrf_key)$pubkey
-      d_claim=jwt_decode_sig(req$HTTP_APIKEY,cfrf_pubkey)
-      plumber::forward()
-    }
-  }
-}
+# #* Authenticate for access to raw data
+# #* @filter Raw_Data_Auth
+# function(req){
+#   ## If the request is for an unsecured endpoint, just pass it through
+#   if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
+#     plumber::forward()
+#   } else {
+#     ## Otherwise, read in the key and attempt to authenticate
+#     if(req$PATH_INFO==("/get_odn_data")){
+#       odn_pubkey=as.list(odn_key)$pubkey
+#       d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
+#       plumber::forward()
+#     }
+#     if(req$PATH_INFO==("/get_cfrf_data")){
+#       cfrf_pubkey=as.list(cfrf_key)$pubkey
+#       d_claim=jwt_decode_sig(req$HTTP_APIKEY,cfrf_pubkey)
+#       plumber::forward()
+#     }
+#   }
+# }
 
 #* Import information about a new logger
 #* @param loggerdat
@@ -789,8 +789,10 @@ function(vessel_id,start_date,end_date){
 #* Make high resolution data for a particular vessel available to CFRF end users
 #* @param cfrf_id The CFRF ID number associated with the vessel of interest
 #* @get /get_cfrf_data
+#* @serializer csv list(type="text/plain; charset=UTF-8")
 function(cfrf_id){
   ## Connect to the database
+  db_config=config::get(file="/etc/plumber/config.yml")$add_dev_intranet
   conn=dbConnector(db_config)
 
   ## Look up the corresponding vessel_id using the CFRF ID
@@ -934,13 +936,46 @@ function(cfrf_id){
   )
   ## Return the values
   return(
-    list(
-      "VESSEL_NAME"=paste0('CFRF VESSEL ',cfrf_id),
-      "RAW_DATA"=raw_data
-    )
+    qaqc
   )
 }
 
+#* Lowell Test Endpoint
+#* @param reason reason for the message
+#* @param project project name
+#* @param vessel vessel name
+#* @param ddh_commit git commit id, what's running on the DDH
+#* @param utc_time a string with the UTC timestamp
+#* @param local_time a string with the local timestamp
+#* @param box_sn DDH serial number
+#* @param hw_uptime DDH uptime in minutes
+#* @param gps_position string with lat/lon
+#* @param platform string describing the processor type (e.g. rpi3)
+#* @param msg_ver version message
+#* @post /post_lowell
+function(reason=NA,project=NA,vessel=NA,ddh_commit=NA,utc_time=NA,local_time=NA,box_sn=NA,hw_uptime=NA,gps_position=NA,platform=NA,msg_ver=NA){
+  message=paste0(
+    "The fishing vessel ",
+    vessel,
+    " sent a message at ",
+    local_time,
+    " from ",
+    gps_position,
+    " because ",
+    reason,
+    ". Currently, the vessel has onboard DDH number ",
+    box_sn,
+    " which is built on ",
+    platform,
+    " and was operational for ",
+    hw_uptime,
+    " before the message was sent. The DDH is running git version ",
+    ddh_commit,
+    " and sending message version ",
+    msg_ver
+  )
+  return(message)
+}
 #* Add a new equipment installation or removal record to the database
 #* @param vessel_id
 #* @param contact_id
@@ -952,7 +987,7 @@ function(cfrf_id){
 #* @post /equipment_install_removal
 function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip_installed=NA){
   ## Connect to the database
-  config::get(file="/etc/plumber/config.yml")$add_dev_intranet
+  db_config2=config::get(file="/etc/plumber/config.yml")$add_dev_intranet
   conn=dbConnector(db_config2)
   ## Look for an existing visit record
   visit_record=dbGetQuery(
@@ -1006,7 +1041,7 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
   }
   ## Look up the start and end inventory_id values using the serial numbers
   start_inventory_id=ifelse(
-    is.na(equip_removed),
+    equip_removed==0,
     NA,
     dbGetQuery(
       conn=conn,
@@ -1018,7 +1053,7 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
     )$INVENTORY_ID
   )
   end_inventory_id=ifelse(
-    is.na(equip_installed),
+    equip_installed==0,
     NA,
     dbGetQuery(
       conn=conn,
@@ -1030,7 +1065,7 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
     )$INVENTORY_ID
   )
   ## Start and End IDs cannot both be NA
-  if(is.na(end_inventory_id)*is.na(start_inventory_id)==1){
+  if((is.na(end_inventory_id)*is.na(start_inventory_id))==1){
     dbDisconnectAll()
     stop("All records must include at least one install or one removal.")
   }
@@ -1059,7 +1094,7 @@ function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip
     dbGetQuery(
       conn=conn,
       statement=paste0(
-        "UPDATE EQUIPMENT_INVENTORY SET CURRENT_LOCATION = 'VESSEL' AND CUSTODIAN = ",
+        "UPDATE EQUIPMENT_INVENTORY SET CURRENT_LOCATION = 'VESSEL',CUSTODIAN = ",
         owner,
         " WHERE INVENTORY_ID = ",
         end_inventory_id
