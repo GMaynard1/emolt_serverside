@@ -8,26 +8,26 @@ source("API_header.R")
 #* @apiContact list(name="API Support",email="george.maynard@noaa.gov")
 #* @apiVersion 1.1.2
 
-# #* Authenticate for access to raw data
-# #* @filter Raw_Data_Auth
-# function(req){
-#   ## If the request is for an unsecured endpoint, just pass it through
-#   if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
-#     plumber::forward()
-#   } else {
-#     ## Otherwise, read in the key and attempt to authenticate
-#     if(req$PATH_INFO==("/get_odn_data")){
-#       odn_pubkey=as.list(odn_key)$pubkey
-#       d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
-#       plumber::forward()
-#     }
-#     if(req$PATH_INFO==("/get_cfrf_data")){
-#       cfrf_pubkey=as.list(cfrf_key)$pubkey
-#       d_claim=jwt_decode_sig(req$HTTP_APIKEY,cfrf_pubkey)
-#       plumber::forward()
-#     }
-#   }
-# }
+#* Authenticate for access to raw data
+#* @filter Raw_Data_Auth
+function(req){
+  ## If the request is for an unsecured endpoint, just pass it through
+  if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
+    plumber::forward()
+  } else {
+    ## Otherwise, read in the key and attempt to authenticate
+    if(req$PATH_INFO==("/get_odn_data")){
+      odn_pubkey=as.list(odn_key)$pubkey
+      d_claim=jwt_decode_sig(req$HTTP_APIKEY,odn_pubkey)
+      plumber::forward()
+    }
+    if(req$PATH_INFO==("/get_cfrf_data")){
+      cfrf_pubkey=as.list(cfrf_key)$pubkey
+      d_claim=jwt_decode_sig(req$HTTP_APIKEY,cfrf_pubkey)
+      plumber::forward()
+    }
+  }
+}
 
 #* Import information about a new logger
 #* @param loggerdat
@@ -986,9 +986,6 @@ function(reason=NA,project=NA,vessel=NA,ddh_commit=NA,utc_time=NA,local_time=NA,
 #* @param equip_installed
 #* @post /equipment_install_removal
 function(vessel_id,contact_id,port,visit_date,visit_notes,equip_removed=NA,equip_installed=NA){
-  ## Connect to the database
-  db_config2=config::get(file="/etc/plumber/config.yml")$add_dev_intranet
-  conn=dbConnector(db_config2)
   ## Look for an existing visit record
   visit_record=dbGetQuery(
     conn=conn,
