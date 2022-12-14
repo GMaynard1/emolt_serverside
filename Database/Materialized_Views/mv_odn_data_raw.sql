@@ -1,19 +1,45 @@
-CREATE TABLE odn_data_raw(
+TRUNCATE odn_data_raw;
+INSERT INTO odn_data_raw(
   SELECT
-    zz_odn_depth_raw.VESSEL_ID,
-    zz_odn_depth_raw.FMCODE AS GEAR_TYPE,
-    zz_odn_depth_raw.TOW_ID,
-    zz_odn_depth_raw.TIMESTAMP,
-    zz_odn_depth_raw.LATITUDE,
-    zz_odn_depth_raw.LONGITUDE,
-    zz_odn_depth_raw.DEPTH,
-    zz_odn_temp_raw.TEMP
-  FROM 
-    zz_odn_depth_raw
-  INNER JOIN 
-    zz_odn_temp_raw
-  ON 
-    zz_odn_depth_raw.TOW_ID = zz_odn_temp_raw.TOW_ID
-    AND
-    zz_odn_depth_raw.TIMESTAMP = zz_odn_temp_raw.TIMESTAMP
+  DEPTH_DATA.TOW_ID,
+  DEPTH_DATA.VESSEL_ID,
+  DEPTH_DATA.TIMESTAMP,
+  DEPTH_DATA.LATITUDE,
+  DEPTH_DATA.LONGITUDE,
+  DEPTH_DATA.DEPTH,
+  TOWS_ENV.TR_VALUE AS TEMP,
+  DEPTH_DATA.FMCODE
+FROM
+  TOWS_ENV
+  INNER JOIN
+  (SELECT
+    TOWS_POINTS.TOW_ID,
+    TOWS_POINTS.TOWS_POINTS_ID,
+    TOWS_POINTS.TIMESTAMP,
+    TOWS_POINTS.LATITUDE,
+    TOWS_POINTS.LONGITUDE,
+    TOWS_ENV.TR_VALUE AS DEPTH,
+    TOWS.VESSEL_ID,
+    GEAR_CODES.FMCODE
+  FROM
+    TOWS_POINTS
+    INNER JOIN
+      TOWS
+      ON
+      TOWS.TOW_ID=TOWS_POINTS.TOW_ID
+      INNER JOIN
+        TOWS_ENV
+        ON
+        TOWS_ENV.TOWS_POINTS_ID=TOWS_POINTS.TOWS_POINTS_ID
+      INNER JOIN
+        VESSELS
+        ON
+        VESSELS.VESSEL_ID=TOWS.VESSEL_ID
+        INNER JOIN
+          GEAR_CODES
+          ON
+          GEAR_CODES.GEAR_CODE=VESSELS.PRIMARY_GEAR
+  WHERE TOWS_ENV.TR_PARAMETER="DEPTH") AS DEPTH_DATA
+  ON TOWS_ENV.TOWS_POINTS_ID=DEPTH_DATA.TOWS_POINTS_ID
+  WHERE TOWS_ENV.TR_PARAMETER="TEMP"
 );
