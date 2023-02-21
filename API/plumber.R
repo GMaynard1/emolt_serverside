@@ -130,6 +130,7 @@ function(loggerdat){
           )
         )
       )
+      dbDisconnectAll()
       break()
     }
     ## Check which optional variables are present to form the query
@@ -777,6 +778,7 @@ function(vessel_id,start_date,end_date){
   #THIS IS JUST A PLACEHOLDER FOR NOW
 
   ## Return the values
+  dbDisconnectAll()
   return(
     list(
       "VESSEL_ID"=vessel_id,
@@ -964,6 +966,7 @@ function(cfrf_id=0,session_id=0){
     "records\n\nTOTAL QAQC TIME =",
     totTime
   )
+  dbDisconnectAll()
   ## Return the values
   return(
     qaqc
@@ -1004,6 +1007,7 @@ function(reason=NA,project=NA,vessel=NA,ddh_commit=NA,utc_time=NA,local_time=NA,
     " and sending message version ",
     msg_ver
   )
+  dbDisconnectAll()
   return(message)
 }
 #* Add a new equipment installation or removal record to the database
