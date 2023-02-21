@@ -12,7 +12,7 @@ source("API_header.R")
 #* @filter Raw_Data_Auth
 function(req){
   ## If the request is for an unsecured endpoint, just pass it through
-  if(req$PATH_INFO%in%c("/get_odn_data","/get_cfrf_data")==FALSE){
+  if(req$PATH_INFO%in%c("/get_odn_data")==FALSE){
     plumber::forward()
   } else {
     ## Otherwise, read in the key and attempt to authenticate
@@ -788,33 +788,49 @@ function(vessel_id,start_date,end_date){
 
 #* Make high resolution data for a particular vessel available to CFRF end users
 #* @param cfrf_id The CFRF ID number associated with the vessel of interest
+#* @param session_id The session ID number of the session of interest
 #* @get /get_cfrf_data
 #* @serializer csv list(type="text/plain; charset=UTF-8")
-function(cfrf_id){
+function(cfrf_id=0,session_id=0){
   ## Connect to the database
-  db_config=config::get(file="/etc/plumber/config.yml")$add_dev_intranet
+  #db_config=all_config$add_dev_intranet
+  db_config=all_config$add_intranet_dev
   conn=dbConnector(db_config)
-
-  ## Look up the corresponding vessel_id using the CFRF ID
-  vessel_id=dbGetQuery(
-    conn=conn,
-    statement=paste0(
-      "SELECT VESSEL_ID FROM VESSELS WHERE VESSEL_NAME = 'CFRF VESSEL ",
-      cfrf_id,
-      "'"
+  if(cfrf_id!=0){
+    ## Look up the corresponding vessel_id using the CFRF ID
+    vessel_id=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT VESSEL_ID FROM VESSELS WHERE VESSEL_NAME = 'CFRF VESSEL ",
+        cfrf_id,
+        "'"
+      )
+    )$VESSEL_ID
+    ## Grab the raw data from the database
+    start=Sys.time()
+    raw_data=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT * FROM cfrf_data_raw WHERE VESSEL_ID = ",
+        vessel_id
+      )
     )
-  )$VESSEL_ID
-  ## Grab the raw data from the database
-  start=Sys.time()
-  raw_data=dbGetQuery(
-    conn=conn,
-    statement=paste0(
-      "SELECT * FROM cfrf_data_raw WHERE VESSEL_ID = ",
-      vessel_id
+    finish=Sys.time()
+    round(difftime(finish,start,units='secs'),2)
+  }
+  if(session_id!=0){
+    start=Sys.time()
+    raw_data=dbGetQuery(
+      conn=conn,
+      statement=paste0(
+        "SELECT * FROM cfrf_data_raw WHERE session_id = '",
+        session_id,
+        "'"
+      )
     )
-  )
-  finish=Sys.time()
-  round(difftime(finish,start,units='secs'),2)
+    finish=Sys.time()
+    round(difftime(finish,start,units='secs'),2)
+  }
 
   ## Apply the QAQC routine to the raw data
   totTime=0
@@ -887,20 +903,6 @@ function(cfrf_id){
   )
   totTime=totTime+round(difftime(finish,start,units='secs'),2)
   start=Sys.time()
-  qaqc=RateOfChangeCheck(
-    column="DEPTH",
-    dataframe=qaqc
-  )
-  finish=Sys.time()
-  cat(
-    "RateOfChangeCheck -DEPTH- took",
-    round(difftime(finish,start,units='secs'),2),
-    "seconds for",
-    nrow(qaqc),
-    "records\n\n"
-  )
-  totTime=totTime+round(difftime(finish,start,units='secs'),2)
-  start=Sys.time()
   qaqc=SpikeCheck_Temp(
     dataframe=qaqc,
     temp_column="TEMP",
@@ -916,10 +918,38 @@ function(cfrf_id){
     "records\n\n"
   )
   totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  # start=Sys.time()
+  # qaqc=RollingAvgSpikeCheck(
+  #   dataframe=qaqc,
+  #   column="TEMPERATURE",
+  #   time_column="TIMESTAMP"
+  # )
+  # finish=Sys.time()
+  # cat(
+  #   "RASpikeCheck_Temp took",
+  #   round(difftime(finish,start,units='secs'),2),
+  #   "seconds for",
+  #   nrow(qaqc),
+  #   "records\n\n"
+  # )
+  # totTime=totTime+round(difftime(finish,start,units='secs'),2)
+  # start=Sys.time()
+  # qaqc=UnlikelyTempCheck(
+  #   dataframe=qaqc,
+  #   temp_column="TEMPERATURE"
+  # )
+  # finish=Sys.time()
+  # cat(
+  #   "UnlikelyTempCheck took",
+  #   round(difftime(finish,start,units='secs'),2),
+  #   "seconds for",
+  #   nrow(qaqc),
+  #   "records\n\n"
+  # )
   start=Sys.time()
   qaqc=StuckValueCheck(
     dataframe=qaqc,
-    depth_column="DEPTH",
+    depth_column=NA,
     time_column="TIMESTAMP",
     temp_column="TEMP",
     salinity_column=NA,
