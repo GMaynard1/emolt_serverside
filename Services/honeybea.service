@@ -1,0 +1,16 @@
+[Unit]
+Description=Container running the latest version of the Honeybea API
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+Restart=always
+ExecStartPre=-/usr/bin/docker stop honeybea
+ExecStartPre=-/usr/bin/docker rm honeybea
+#ExecStartPre=-/home/george/docker_api bash builder.sh 
+#ExecStartPre=/usr/bin/docker pull honeybea
+ExecStart=/usr/bin/docker container run --publish 5432:5432 --name honeybea honeybea-image
+
+[Install]
+WantedBy=multi-user.target
