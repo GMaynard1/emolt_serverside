@@ -14,7 +14,7 @@ class Message(BaseModel):
 app = FastAPI()
 
 
-@app.post("/messages/")
+@app.post("/messages")
 async def create_message(message: Message):
     conn = connect_from_config.db_connect_from_config("app/utils/dev_db_ddh.yml")
     cur = conn.cursor()
