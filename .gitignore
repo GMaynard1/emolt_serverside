@@ -6,3 +6,4 @@ config_aws_cfa.yml
 emolt_serverside.Rproj
 cred_gen*
 API/Keys/*
+Containers/honeybea/app/utils/*.yml
